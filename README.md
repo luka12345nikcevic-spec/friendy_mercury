@@ -1,13 +1,13 @@
 # Friendy Mercury
 
-Friendy Mercury is a planned lightweight object-detection toolkit for this project. The goal is to provide a common training, evaluation, metrics, and prediction-format layer across multiple detection architectures.
+Friendy Mercury is a planned lightweight object-detection toolkit for this project. The goal is to provide a common training, validation, metrics, and prediction-format layer across multiple detection architectures.
 
 The main idea:
 
 - Keep model-specific code isolated in adapters.
 - Keep datasets, metrics, postprocessing, and output formats shared.
 - Let different architectures produce comparable YOLO-like predictions.
-- Make every model train and evaluate through the same high-level interface.
+- Make every model train and validate through the same high-level interface.
 
 This module is currently scaffold-only. It is placed inside the CPPED repository for now and can be moved up one directory later as a standalone package.
 
@@ -47,7 +47,7 @@ friendy_mercury/
 │   └── yolox.py
 ├── config.py
 ├── data.py
-├── eval.py
+├── val.py
 ├── formats.py
 ├── metrics.py
 ├── postprocess.py
@@ -114,14 +114,14 @@ Planned API:
 train_from_config("path/to/config.yaml")
 ```
 
-### `eval.py`
+### `val.py`
 
-Provides a universal evaluation entry point.
+Provides a universal validation entry point.
 
 Planned API:
 
 ```python
-eval_from_config("path/to/config.yaml")
+val_from_config("path/to/config.yaml")
 ```
 
 ### `registry.py`
@@ -158,4 +158,4 @@ Everything downstream should operate on the same prediction and target formats.
 3. Add box conversion and NMS utilities in `friendy_mercury/postprocess.py`.
 4. Implement RetinaNet first because TorchVision has a clean PyTorch detection API.
 5. Add RT-DETR and YOLOX adapters.
-6. Replace model-specific train/eval duplication with Friendy Mercury calls.
+6. Replace model-specific train/val duplication with Friendy Mercury calls.
