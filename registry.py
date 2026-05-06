@@ -24,14 +24,24 @@ def build_model(name, **kwargs):
             score_threshold, weights_backbone, trainable_backbone_layers, and
             variant.
 
-    Weight examples:
-        build_model("retinanet", num_classes=3)
-        build_model("retinanet", num_classes=3, weights_backbone="DEFAULT")
-        build_model("retinanet", num_classes=91, weights="DEFAULT")
-        build_model("rtdetr", num_classes=3)
+    Weight options:
+        weights=None: random initialization.
+        weights="Default": use a common public pretrained checkpoint.
+        weights=<str>: use a model-specific checkpoint path, URL, or model id.
+
+    Default pretrained weights:
+        retinanet: Torchvision COCO RetinaNet weights. If num_classes differs
+            from COCO, only compatible tensors are loaded.
+        rtdetr: Hugging Face PekingU/rtdetr_r50vd.
+        yolox: official Megvii YOLOX release weights for the selected variant.
+
+    Examples:
+        build_model("retinanet", num_classes=3, weights="Default")
+        build_model("retinanet", num_classes=3, weights_backbone="Default")
+        build_model("rtdetr", num_classes=3, weights="Default")
         build_model("rtdetr", num_classes=3, weights="PekingU/rtdetr_r50vd")
-        build_model("yolox", num_classes=3)
-        build_model("yolox", num_classes=3, variant="yolox-s")
+        build_model("yolox", num_classes=3, variant="yolox-s", weights="Default")
+        build_model("yolox", num_classes=3, weights="path/to/checkpoint.pth")
     """
     try:
         builder = MODEL_REGISTRY[name]

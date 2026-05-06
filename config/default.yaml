@@ -1,0 +1,82 @@
+# Friendy Mercury default training config. Ultralytics-style names are used
+# where they make sense for these PyTorch detection adapters.
+model:
+  name: retinanet
+  variant: resnet50_fpn_v2
+  weights: null       # null, Default, local path, URL, or backend model id
+  weights_backbone: null
+  trainable_backbone_layers: null
+  num_classes: null   # inferred from data.names when null
+
+data:
+  path: null          # YOLO data.yaml
+  train: train
+  val: val
+  test: null
+
+train:
+  epochs: 100
+  patience: 100
+  batch: 16
+  imgsz: 640
+  device: null
+  workers: 8
+  project: runs/train
+  name: exp
+  exist_ok: false
+  seed: 0
+  deterministic: true
+  pretrained: true
+  resume: false
+  amp: true
+  fraction: 1.0
+  freeze: null
+  save: true
+  save_period: -1
+  val: true
+  verbose: true
+
+optimizer:
+  name: auto          # auto, SGD, Adam, AdamW, NAdam, RAdam, RMSProp
+  lr0: 0.01
+  lrf: 0.01
+  momentum: 0.937
+  weight_decay: 0.0005
+  nesterov: true
+
+scheduler:
+  cos_lr: false
+  warmup_epochs: 3.0
+  warmup_momentum: 0.8
+  warmup_bias_lr: 0.1
+
+loss:
+  # Optional scalar weights for adapter loss keys. Empty means use adapter total_loss.
+  weights: {}
+  box: 7.5
+  cls: 0.5
+  dfl: 1.5
+  obj: 1.0
+  focal_gamma: 0.0
+  label_smoothing: 0.0
+
+augment:
+  hsv_h: 0.015
+  hsv_s: 0.7
+  hsv_v: 0.4
+  degrees: 0.0
+  translate: 0.1
+  scale: 0.5
+  shear: 0.0
+  perspective: 0.0
+  flipud: 0.0
+  fliplr: 0.5
+  mosaic: 0.0
+  mixup: 0.0
+  copy_paste: 0.0
+  close_mosaic: 10
+
+eval:
+  conf: 0.001
+  iou: 0.7
+  max_det: 300

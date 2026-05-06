@@ -1,0 +1,26 @@
+model:
+  name: yolox
+  variant: yolox-s
+  weights: Default
+  score_threshold: 0.3
+  nms_threshold: 0.45
+
+optimizer:
+  name: SGD
+  lr0: 0.01
+  lrf: 0.01
+  momentum: 0.9
+  weight_decay: 0.0005
+  nesterov: true
+
+scheduler:
+  cos_lr: true
+  warmup_epochs: 5.0
+  warmup_momentum: 0.8
+
+loss:
+  weights:
+    iou_loss: 1.0
+    conf_loss: 1.0
+    cls_loss: 1.0
+    l1_loss: 1.0

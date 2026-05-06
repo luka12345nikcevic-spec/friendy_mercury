@@ -6,6 +6,14 @@ import torch.nn.functional as F
 
 
 DEFAULT_YOLOX_VARIANT = "yolox-s"
+DEFAULT_YOLOX_WEIGHT_URLS = {
+    "yolox-nano": "https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/yolox_nano.pth",
+    "yolox-tiny": "https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/yolox_tiny.pth",
+    "yolox-s": "https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/yolox_s.pth",
+    "yolox-m": "https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/yolox_m.pth",
+    "yolox-l": "https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/yolox_l.pth",
+    "yolox-x": "https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/yolox_x.pth",
+}
 
 
 @dataclass
@@ -131,6 +139,7 @@ def build_yolox(
         variant=variant,
         **builder_options,
     )
+    weights = _normalize_yolox_weights(weights, variant)
     if weights:
         _load_checkpoint(model, weights)
 
@@ -203,7 +212,48 @@ def _make_divisible(value: int, divisor: int) -> int:
     return int((value + divisor - 1) // divisor * divisor)
 
 
+def _normalize_yolox_weights(weights, variant: str):
+    if weights is None or weights is False:
+        return None
+
+    if weights is True:
+        return _default_yolox_weights(variant)
+
+    if isinstance(weights, str) and weights.lower() == "default":
+        return _default_yolox_weights(variant)
+
+    return weights
+
+
+def _default_yolox_weights(variant: str) -> str:
+    try:
+        return DEFAULT_YOLOX_WEIGHT_URLS[variant]
+    except KeyError as exc:
+        available = ", ".join(sorted(DEFAULT_YOLOX_WEIGHT_URLS))
+        raise ValueError(
+            f"No default YOLOX weights for variant '{variant}'. Available: {available}"
+        ) from exc
+
+
 def _load_checkpoint(model: torch.nn.Module, checkpoint_path: str) -> None:
-    checkpoint = torch.load(checkpoint_path, map_location="cpu")
+    if str(checkpoint_path).startswith(("http://", "https://")):
+        checkpoint = torch.hub.load_state_dict_from_url(
+            checkpoint_path,
+            map_location="cpu",
+            file_name=checkpoint_path.rsplit("/", 1)[-1],
+        )
+    else:
+        checkpoint = torch.load(checkpoint_path, map_location="cpu")
+
     state_dict = checkpoint.get("model", checkpoint)
-    model.load_state_dict(state_dict)
+    _load_matching_state_dict(model, state_dict)
+
+
+def _load_matching_state_dict(model: torch.nn.Module, state_dict) -> None:
+    model_state = model.state_dict()
+    compatible_state = {
+        key: value
+        for key, value in state_dict.items()
+        if key in model_state and model_state[key].shape == value.shape
+    }
+    model.load_state_dict(compatible_state, strict=False)

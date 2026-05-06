@@ -64,11 +64,15 @@ def build_retinanet(
         builder = retinanet_resnet50_fpn
         weight_enum = RetinaNet_ResNet50_FPN_Weights
 
-    model_weights = _resolve_weights(weight_enum, weights)
+    model_weights, checkpoint_weights = _resolve_retinanet_weights(
+        weight_enum,
+        weights,
+        num_classes,
+    )
     backbone_weights = (
         None
-        if model_weights is not None
-        else _resolve_weights(ResNet50_Weights, weights_backbone)
+        if model_weights is not None or checkpoint_weights is not None
+        else _resolve_torchvision_weights(ResNet50_Weights, weights_backbone)
     )
 
     model = builder(
@@ -78,6 +82,10 @@ def build_retinanet(
         trainable_backbone_layers=trainable_backbone_layers,
         **kwargs,
     )
+
+    if checkpoint_weights is not None:
+        _load_retinanet_checkpoint(model, checkpoint_weights)
+
     return RetinaNetAdapter(model=model, num_classes=num_classes)
 
 
@@ -119,13 +127,50 @@ def _xyxy_to_xywhn(
     return torch.stack([x_center, y_center, width, height], dim=1) / normalizer
 
 
-def _resolve_weights(enum_cls, value):
-    if value is None:
+def _resolve_retinanet_weights(enum_cls, value, num_classes):
+    if value is None or value is False:
+        return None, None
+
+    if value is True or (isinstance(value, str) and value.lower() == "default"):
+        default_weights = enum_cls.DEFAULT
+        default_num_classes = len(default_weights.meta["categories"])
+        if num_classes == default_num_classes:
+            return default_weights, None
+        return None, default_weights
+
+    try:
+        return enum_cls.verify(value), None
+    except (KeyError, ValueError):
+        return None, value
+
+
+def _resolve_torchvision_weights(enum_cls, value):
+    if value is None or value is False:
         return None
 
-    if value is True:
-        value = "DEFAULT"
-    elif value is False:
-        return None
+    if value is True or (isinstance(value, str) and value.lower() == "default"):
+        return enum_cls.DEFAULT
 
     return enum_cls.verify(value)
+
+
+def _load_retinanet_checkpoint(model: torch.nn.Module, checkpoint_weights) -> None:
+    if hasattr(checkpoint_weights, "get_state_dict"):
+        state_dict = checkpoint_weights.get_state_dict(progress=True)
+    elif str(checkpoint_weights).startswith(("http://", "https://")):
+        state_dict = torch.hub.load_state_dict_from_url(checkpoint_weights, map_location="cpu")
+    else:
+        checkpoint = torch.load(checkpoint_weights, map_location="cpu")
+        state_dict = checkpoint.get("model", checkpoint)
+
+    _load_matching_state_dict(model, state_dict)
+
+
+def _load_matching_state_dict(model: torch.nn.Module, state_dict) -> None:
+    model_state = model.state_dict()
+    compatible_state = {
+        key: value
+        for key, value in state_dict.items()
+        if key in model_state and model_state[key].shape == value.shape
+    }
+    model.load_state_dict(compatible_state, strict=False)

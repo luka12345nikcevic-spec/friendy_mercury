@@ -135,10 +135,7 @@ def build_rtdetr(
         {class_name: class_id for class_id, class_name in id2label.items()},
     )
 
-    if weights is True:
-        weights = DEFAULT_RTDETR_WEIGHTS
-    elif weights is False:
-        weights = None
+    weights = _normalize_rtdetr_weights(weights)
 
     if weights is None:
         config = RTDetrConfig(
@@ -189,6 +186,19 @@ def rtdetr_prediction_to_friendy(
         ],
         dim=1,
     )
+
+
+def _normalize_rtdetr_weights(weights):
+    if weights is None or weights is False:
+        return None
+
+    if weights is True:
+        return DEFAULT_RTDETR_WEIGHTS
+
+    if isinstance(weights, str) and weights.lower() == "default":
+        return DEFAULT_RTDETR_WEIGHTS
+
+    return weights
 
 
 def _xyxy_to_xywhn(

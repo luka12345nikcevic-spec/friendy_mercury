@@ -1,0 +1,22 @@
+model:
+  name: retinanet
+  variant: resnet50_fpn_v2
+  weights: Default
+  weights_backbone: null
+  trainable_backbone_layers: 3
+
+optimizer:
+  name: SGD
+  lr0: 0.005
+  lrf: 0.01
+  momentum: 0.9
+  weight_decay: 0.0005
+
+scheduler:
+  cos_lr: false
+  warmup_epochs: 1.0
+
+loss:
+  weights:
+    classification: 1.0
+    bbox_regression: 1.0
