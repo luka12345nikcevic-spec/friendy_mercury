@@ -1,0 +1,6 @@
+opencv-python
+numpy
+pillow
+pyyaml
+torch
+torchvision
