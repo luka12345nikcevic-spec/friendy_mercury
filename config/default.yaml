@@ -26,7 +26,6 @@ train:
   exist_ok: false
   seed: 0
   deterministic: true
-  pretrained: true
   resume: false
   amp: true
   fraction: 1.0
@@ -48,17 +47,11 @@ scheduler:
   cos_lr: false
   warmup_epochs: 3.0
   warmup_momentum: 0.8
-  warmup_bias_lr: 0.1
 
 loss:
-  # Optional scalar weights for adapter loss keys. Empty means use adapter total_loss.
+  # Optional scalar weights for normalized loss keys or adapter-native loss keys.
+  # Empty means use adapter total_loss.
   weights: {}
-  box: 7.5
-  cls: 0.5
-  dfl: 1.5
-  obj: 1.0
-  focal_gamma: 0.0
-  label_smoothing: 0.0
 
 augment:
   hsv_h: 0.015
@@ -77,6 +70,7 @@ augment:
   close_mosaic: 10
 
 eval:
+  weights: best.pt
   conf: 0.001
   iou: 0.7
   max_det: 300

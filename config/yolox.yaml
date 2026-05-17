@@ -20,7 +20,6 @@ scheduler:
 
 loss:
   weights:
-    iou_loss: 1.0
-    conf_loss: 1.0
     cls_loss: 1.0
-    l1_loss: 1.0
+    box_loss: 1.0
+    obj_loss: 1.0

@@ -1,0 +1,49 @@
+# Display aliases for adapter loss keys.
+#
+# These mappings do not change the training loss used for backpropagation.
+# train.py keeps all native adapter loss keys in epoch_stats and adds these
+# normalized aliases only when matching source keys are present.
+loss:
+  aliases:
+    cls_loss:
+      # RetinaNet / TorchVision
+      - classification
+      # YOLO-style / YOLOX-style
+      - cls_loss
+      - class_loss
+      - loss_cls
+      - loss_class
+      # DETR / RT-DETR-style
+      - loss_ce
+      - loss_vfl
+      - loss_labels
+
+    box_loss:
+      # RetinaNet / TorchVision
+      - bbox_regression
+      # YOLO-style / YOLOX-style
+      - box_loss
+      - iou_loss
+      - giou_loss
+      - l1_loss
+      - loss_box
+      - loss_iou
+      - loss_giou
+      - loss_l1
+      # DETR / RT-DETR-style
+      - loss_bbox
+
+    obj_loss:
+      # YOLO-style / YOLOX-style objectness or confidence losses
+      - obj_loss
+      - objectness_loss
+      - conf_loss
+      - confidence_loss
+      - loss_obj
+      - loss_objectness
+      - loss_conf
+
+    dfl_loss:
+      # YOLO-style distribution focal loss
+      - dfl_loss
+      - loss_dfl

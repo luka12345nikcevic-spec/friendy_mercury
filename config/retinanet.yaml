@@ -18,5 +18,5 @@ scheduler:
 
 loss:
   weights:
-    classification: 1.0
-    bbox_regression: 1.0
+    cls_loss: 1.0
+    box_loss: 1.0

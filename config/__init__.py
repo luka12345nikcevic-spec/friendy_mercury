@@ -6,10 +6,12 @@ import yaml
 
 CONFIG_DIR = Path(__file__).resolve().parent
 DEFAULT_CONFIG_PATH = CONFIG_DIR / "default.yaml"
+LOSS_ALIASES_CONFIG_PATH = CONFIG_DIR / "loss_aliases.yaml"
 
 
 def load_config(config_path=None, overrides=None):
     config = _read_yaml(DEFAULT_CONFIG_PATH)
+    config = deep_update(config, _read_yaml(LOSS_ALIASES_CONFIG_PATH))
 
     if config_path is not None:
         config = deep_update(config, _read_yaml(config_path))

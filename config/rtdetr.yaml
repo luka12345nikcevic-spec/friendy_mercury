@@ -15,4 +15,6 @@ scheduler:
   warmup_epochs: 1.0
 
 loss:
-  weights: {}
+  weights:
+    cls_loss: 1.0
+    box_loss: 1.0
