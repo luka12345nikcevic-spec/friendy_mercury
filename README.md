@@ -59,11 +59,71 @@ friendy_mercury/
 
 ### `config.py`
 
-Loads and validates YAML configuration files. This should become the single place that defines required and optional config fields.
+Loads and validates one YAML experiment file. Paths are resolved relative to the YAML file, then expanded into one run per train-dataset/model pair. Validation and test metrics are computed in the eval dataset class space, so train-only classes are ignored when the eval dataset does not list them.
+
+Example:
+
+```yaml
+name: helmet-benchmark
+output_dir: runs/helmet-benchmark
+
+datasets:
+  train:
+    - name: field-v1
+      images: datasets/field-v1/images/train
+      labels: datasets/field-v1/labels/train
+      classes: [helmet, head, vest]
+    - name: warehouse-v2
+      images: datasets/warehouse-v2/images/train
+      labels: datasets/warehouse-v2/labels/train
+      classes: [helmet, head, vest]
+  val:
+    name: field-v1-val
+    images: datasets/field-v1/images/val
+    labels: datasets/field-v1/labels/val
+    classes: [helmet, head, vest]
+  test:
+    name: holdout
+    images: datasets/holdout/images/test
+    labels: datasets/holdout/labels/test
+    classes: [helmet, head, vest]
+
+# Class IDs can differ between train and val/test as long as class names match.
+# Metrics use the val/test classes and ignore predictions for train-only names.
+# num_classes: auto makes each run use len(current train dataset classes).
+
+models:
+  - name: retinanet
+    num_classes: auto
+    weights_backbone: DEFAULT
+  - name: yolox
+    num_classes: auto
+    variant: yolox-s
+  - name: rtdetr
+    num_classes: auto
+    weights: PekingU/rtdetr_r50vd
+
+training:
+  epochs: 100
+  batch_size: 4
+  num_workers: 4
+  device: auto
+  amp: false
+  optimizer:
+    name: adamw
+    lr: 0.0001
+    weight_decay: 0.0001
+  scheduler: null
+
+evaluation:
+  batch_size: 4
+  score_threshold: 0.001
+  iou_thresholds: [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
+```
 
 ### `data.py`
 
-Loads YOLO-format datasets.
+Loads YOLO-format image/label directory datasets.
 
 Expected label format:
 
@@ -71,7 +131,7 @@ Expected label format:
 class_id x_center y_center width height
 ```
 
-This module should eventually provide image discovery, label parsing, dataset splits, a PyTorch `Dataset`, and a detection batch collate function.
+This module provides image discovery, YOLO label parsing, a PyTorch `Dataset`, and a detection batch collate function.
 
 ### `formats.py`
 
@@ -106,13 +166,23 @@ The same metrics should be used for every architecture so paper comparisons are 
 
 ### `train.py`
 
-Provides a universal training entry point.
+Provides the universal config-driven training entry point. Each entry under `datasets.train` is treated as its own training dataset, and every configured model is trained once per dataset. For example, two train datasets and three models produce six independent runs. It saves `last.pt`, saves `best.pt` when validation is configured, writes per-run history/results YAML files, and saves raw test predictions when a test dataset is configured.
 
-Planned API:
+API:
 
 ```python
-train_from_config("path/to/config.yaml")
+from friendy_mercury.train import train_from_config
+
+results = train_from_config("configs/experiment.yaml")
 ```
+
+CLI:
+
+```bash
+python train.py configs/experiment.yaml
+```
+
+Detection metrics are still pending in `metrics.py`, so `best.pt` is chosen by validation loss when a validation dataset exists. Without validation, only `last.pt` is saved.
 
 ### `val.py`
 

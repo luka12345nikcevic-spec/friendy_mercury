@@ -1,112 +1,33 @@
 from pathlib import Path
+from typing import Optional
 
-import yaml
+from torch.utils.data import DataLoader
+
+try:
+    from .config import DatasetConfig, ExperimentConfig
+    from .formats import xywhn_to_xyxy
+except ImportError:
+    from config import DatasetConfig, ExperimentConfig
+    from formats import xywhn_to_xyxy
 
 
 IMAGE_EXTENSIONS = {".bmp", ".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp"}
 
 
-def load_data_yaml(data_yaml_path):
-    data_yaml_path = Path(data_yaml_path).resolve()
-
-    with open(data_yaml_path) as file:
-        config = yaml.safe_load(file) or {}
-
-    dataset_root = _resolve_dataset_root(config.get("path"), data_yaml_path.parent)
-    names = _normalize_names(config.get("names", {}))
-
-    return {
-        "yaml_path": data_yaml_path,
-        "root": dataset_root,
-        "names": names,
-        "train": config.get("train"),
-        "val": config.get("val"),
-        "test": config.get("test"),
-    }
+def _resolve_image_dir(images_root):
+    images_root = Path(images_root).resolve()
+    if not images_root.is_dir():
+        raise FileNotFoundError(f"Could not resolve images directory: {images_root}")
+    return sorted(
+        path.resolve()
+        for path in images_root.rglob("*")
+        if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
+    )
 
 
-def _resolve_dataset_root(config_path, yaml_parent):
-    if not config_path:
-        return yaml_parent
-
-    candidate = Path(config_path)
-    if candidate.is_absolute() and candidate.exists():
-        return candidate
-
-    if not candidate.is_absolute():
-        relative_candidate = (yaml_parent / candidate).resolve()
-        if relative_candidate.exists():
-            return relative_candidate
-
-    return yaml_parent
-
-
-def _normalize_names(names):
-    if isinstance(names, list):
-        return {index: name for index, name in enumerate(names)}
-
-    return {
-        int(class_id): class_name
-        for class_id, class_name in names.items()
-    }
-
-
-def _resolve_split_entries(root, split_value):
-    if split_value is None:
-        raise ValueError("Requested split is not defined in data.yaml")
-
-    if isinstance(split_value, (list, tuple)):
-        image_paths = []
-        for entry in split_value:
-            image_paths.extend(_resolve_split_entries(root, entry))
-        return sorted(image_paths)
-
-    split_path = Path(split_value)
-    if not split_path.is_absolute():
-        split_path = root / split_path
-
-    if split_path.is_file() and split_path.suffix.lower() == ".txt":
-        image_paths = []
-        with open(split_path) as file:
-            for line in file:
-                line = line.strip()
-                if not line:
-                    continue
-
-                image_path = Path(line)
-                if not image_path.is_absolute():
-                    image_path = root / image_path
-                image_paths.append(image_path.resolve())
-
-        return sorted(image_paths)
-
-    if split_path.is_dir():
-        return sorted(
-            path.resolve()
-            for path in split_path.rglob("*")
-            if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
-        )
-
-    raise FileNotFoundError(f"Could not resolve split path: {split_path}")
-
-
-def _image_to_label_path(image_path):
-    parts = list(image_path.parts)
-    if "images" in parts:
-        index = parts.index("images")
-        parts[index] = "labels"
-        return Path(*parts).with_suffix(".txt")
-
-    return image_path.with_suffix(".txt")
-
-
-def _xywhn_to_xyxy(box, image_width, image_height):
-    x_center, y_center, width, height = box
-    x1 = (x_center - width / 2) * image_width
-    y1 = (y_center - height / 2) * image_height
-    x2 = (x_center + width / 2) * image_width
-    y2 = (y_center + height / 2) * image_height
-    return [x1, y1, x2, y2]
+def _image_to_label_path(image_path, images_root, labels_root):
+    relative_path = image_path.relative_to(images_root)
+    return (labels_root / relative_path).with_suffix(".txt")
 
 
 def _read_yolo_label_file(label_path, image_width, image_height):
@@ -124,19 +45,22 @@ def _read_yolo_label_file(label_path, image_width, image_height):
 
             class_id = int(float(parts[0]))
             yolo_box = [float(value) for value in parts[1:5]]
-            boxes.append(_xywhn_to_xyxy(yolo_box, image_width, image_height))
+            boxes.append(xywhn_to_xyxy(yolo_box, image_width, image_height))
             labels.append(class_id)
 
     return boxes, labels
 
 
 class YoloDetectionDataset:
-    def __init__(self, data_yaml_path, split="train", transforms=None):
-        self.data = load_data_yaml(data_yaml_path)
-        self.split = split
+    def __init__(self, images_dir, labels_dir, classes, transforms=None):
         self.transforms = transforms
-        self.image_paths = _resolve_split_entries(self.data["root"], self.data[split])
-        self.names = self.data["names"]
+        self.images_root = Path(images_dir).resolve()
+        self.labels_root = Path(labels_dir).resolve()
+        self.names = dict(classes)
+        self.image_paths = _resolve_image_dir(self.images_root)
+
+        if not self.labels_root.is_dir():
+            raise FileNotFoundError(f"Could not resolve labels directory: {self.labels_root}")
 
     def __len__(self):
         return len(self.image_paths)
@@ -149,7 +73,7 @@ class YoloDetectionDataset:
         image_path = self.image_paths[index]
         image = Image.open(image_path).convert("RGB")
         width, height = image.size
-        label_path = _image_to_label_path(image_path)
+        label_path = _image_to_label_path(image_path, self.images_root, self.labels_root)
         boxes, labels = _read_yolo_label_file(label_path, width, height)
 
         image = np.asarray(image).copy()
@@ -178,3 +102,57 @@ class YoloDetectionDataset:
 def detection_collate_fn(batch):
     images, targets = zip(*batch)
     return list(images), list(targets)
+
+
+def build_dataset(dataset_config: DatasetConfig) -> YoloDetectionDataset:
+    return YoloDetectionDataset(
+        images_dir=dataset_config.images,
+        labels_dir=dataset_config.labels,
+        classes=dataset_config.classes,
+    )
+
+
+def build_train_dataloader(
+    config: ExperimentConfig,
+    dataset_config: DatasetConfig,
+) -> DataLoader:
+    dataset = build_dataset(dataset_config)
+    return DataLoader(
+        dataset,
+        batch_size=config.training.batch_size,
+        shuffle=True,
+        num_workers=config.training.num_workers,
+        collate_fn=detection_collate_fn,
+        pin_memory=_cuda_is_available(),
+    )
+
+
+def build_eval_dataloader(
+    dataset_config: Optional[DatasetConfig],
+    config: ExperimentConfig,
+) -> Optional[DataLoader]:
+    if dataset_config is None:
+        return None
+
+    batch_size = config.evaluation.batch_size or config.training.batch_size
+    num_workers = config.evaluation.num_workers
+    if num_workers is None:
+        num_workers = config.training.num_workers
+
+    dataset = build_dataset(dataset_config)
+    return DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        collate_fn=detection_collate_fn,
+        pin_memory=_cuda_is_available(),
+    )
+
+
+def _cuda_is_available() -> bool:
+    try:
+        import torch
+    except ImportError:
+        return False
+    return torch.cuda.is_available()

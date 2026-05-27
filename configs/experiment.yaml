@@ -1,0 +1,112 @@
+# Friendy Mercury experiment config.
+# Paths are resolved relative to this YAML file.
+
+name: public-datasets-smoke
+output_dir: ../runs/public-datasets-smoke
+
+datasets:
+  train:
+    - name: chvg-dataset
+      images: /home/luka/workspace/CPPED/data/public_datasets/chvg_dataset/images
+      labels: /home/luka/workspace/CPPED/data/public_datasets/chvg_dataset/labels
+      classes:
+        - head
+        - glass
+        - red
+        - yellow
+        - blue
+        - vest
+        - person
+        - white
+
+    - name: kaggle-dataset
+      images: /home/luka/workspace/CPPED/data/public_datasets/kaggle_dataset/images
+      labels: /home/luka/workspace/CPPED/data/public_datasets/kaggle_dataset/labels
+      classes:
+        - Hardhat
+        - Mask
+        - NO-Hardhat
+        - NO-Mask
+        - NO-Safety Vest
+        - Person
+        - Safety Cone
+        - Safety Vest
+        - machinery
+        - vehicle
+
+    - name: ultralytics-dataset
+      images: /home/luka/workspace/CPPED/data/public_datasets/ultralytics_dataset/images
+      labels: /home/luka/workspace/CPPED/data/public_datasets/ultralytics_dataset/labels
+      classes:
+        - helmet
+        - vest
+        - goggles
+        - Person
+        - boots
+        - gloves
+        - no_boots
+        - no_gloves
+        - no_goggle
+        - no_helmet
+        - no_vest
+
+  val:
+    name: ultralytics-val
+    images: /home/luka/workspace/CPPED/data/public_datasets/ultralytics_dataset/images
+    labels: /home/luka/workspace/CPPED/data/public_datasets/ultralytics_dataset/labels
+    classes:
+      - helmet
+      - vest
+      - goggles
+      - Person
+      - boots
+      - gloves
+      - no_boots
+      - no_gloves
+      - no_goggle
+      - no_helmet
+      - no_vest
+
+  test:
+    name: ultralytics-test
+    images: /home/luka/workspace/CPPED/data/public_datasets/ultralytics_dataset/images
+    labels: /home/luka/workspace/CPPED/data/public_datasets/ultralytics_dataset/labels
+    classes:
+      - helmet
+      - vest
+      - goggles
+      - Person
+      - boots
+      - gloves
+      - no_boots
+      - no_gloves
+      - no_goggle
+      - no_helmet
+      - no_vest
+
+models:
+  - name: yolox
+    num_classes: auto
+    variant: yolox-nano
+    score_threshold: 0.3
+    nms_threshold: 0.45
+
+training:
+  epochs: 1
+  batch_size: 2
+  num_workers: 0
+  device: auto
+  seed: 42
+  amp: false
+  gradient_clip_norm: null
+  optimizer:
+    name: adamw
+    lr: 0.0001
+    weight_decay: 0.0001
+  scheduler: null
+
+evaluation:
+  batch_size: 2
+  num_workers: 0
+  score_threshold: 0.001
+  iou_thresholds: [0.5, 0.75]

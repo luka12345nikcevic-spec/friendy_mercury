@@ -3,6 +3,11 @@ from typing import Any, Dict, Optional
 
 import torch
 
+try:
+    from ..formats import xyxy_prediction_to_friendy
+except ImportError:
+    from formats import xyxy_prediction_to_friendy
+
 
 @dataclass
 class RetinaNetAdapter:
@@ -84,39 +89,14 @@ def build_retinanet(
 def retinanet_prediction_to_friendy(
     prediction: Dict[str, torch.Tensor], image: torch.Tensor
 ) -> torch.Tensor:
-    boxes = prediction["boxes"]
-    scores = prediction["scores"]
-    labels = prediction["labels"]
-
-    if boxes.numel() == 0:
-        return boxes.new_zeros((0, 6))
-
     image_height, image_width = image.shape[-2:]
-    xywhn = _xyxy_to_xywhn(boxes, image_width=image_width, image_height=image_height)
-
-    return torch.cat(
-        [
-            xywhn,
-            scores.reshape(-1, 1).to(dtype=boxes.dtype),
-            labels.reshape(-1, 1).to(dtype=boxes.dtype),
-        ],
-        dim=1,
+    return xyxy_prediction_to_friendy(
+        prediction["boxes"],
+        prediction["scores"],
+        prediction["labels"],
+        image_width=image_width,
+        image_height=image_height,
     )
-
-
-def _xyxy_to_xywhn(
-    boxes: torch.Tensor, image_width: int, image_height: int
-) -> torch.Tensor:
-    x1, y1, x2, y2 = boxes.unbind(dim=1)
-    width = x2 - x1
-    height = y2 - y1
-    x_center = x1 + width / 2
-    y_center = y1 + height / 2
-
-    normalizer = boxes.new_tensor(
-        [image_width, image_height, image_width, image_height]
-    )
-    return torch.stack([x_center, y_center, width, height], dim=1) / normalizer
 
 
 def _resolve_weights(enum_cls, value):

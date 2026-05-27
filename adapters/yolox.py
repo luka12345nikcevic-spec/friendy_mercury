@@ -4,6 +4,11 @@ from typing import Any, Optional
 import torch
 import torch.nn.functional as F
 
+try:
+    from ..formats import clip_xyxy, xyxy_prediction_to_friendy, xyxy_to_xywh
+except ImportError:
+    from formats import clip_xyxy, xyxy_prediction_to_friendy, xyxy_to_xywh
+
 
 DEFAULT_YOLOX_VARIANT = "yolox-s"
 
@@ -106,7 +111,7 @@ class YOLOXAdapter:
             if boxes.numel() == 0:
                 continue
 
-            xywh = _xyxy_to_xywh(boxes)
+            xywh = xyxy_to_xywh(boxes)
             yolox_targets[batch_index, : len(labels), 0] = labels
             yolox_targets[batch_index, : len(labels), 1:5] = xywh
 
@@ -149,54 +154,21 @@ def yolox_detection_to_friendy(
     if detection is None or detection.numel() == 0:
         return image.new_zeros((0, 6))
 
-    boxes = detection[:, 0:4]
-    objectness = detection[:, 4]
-    class_confidence = detection[:, 5]
-    labels = detection[:, 6]
-
     image_height, image_width = image.shape[-2:]
-    boxes = _clip_xyxy(boxes, image_width=image_width, image_height=image_height)
-    xywhn = _xyxy_to_xywhn(boxes, image_width=image_width, image_height=image_height)
-    confidence = objectness * class_confidence
-
-    return torch.cat(
-        [
-            xywhn,
-            confidence.reshape(-1, 1).to(dtype=boxes.dtype),
-            labels.reshape(-1, 1).to(dtype=boxes.dtype),
-        ],
-        dim=1,
+    boxes = clip_xyxy(
+        detection[:, 0:4],
+        image_width=image_width,
+        image_height=image_height,
     )
+    confidence = detection[:, 4] * detection[:, 5]
 
-
-def _xyxy_to_xywh(boxes: torch.Tensor) -> torch.Tensor:
-    x1, y1, x2, y2 = boxes.unbind(dim=1)
-    width = x2 - x1
-    height = y2 - y1
-    x_center = x1 + width / 2
-    y_center = y1 + height / 2
-    return torch.stack([x_center, y_center, width, height], dim=1)
-
-
-def _clip_xyxy(
-    boxes: torch.Tensor,
-    image_width: int,
-    image_height: int,
-) -> torch.Tensor:
-    boxes = boxes.clone()
-    boxes[:, 0::2] = boxes[:, 0::2].clamp(0, image_width)
-    boxes[:, 1::2] = boxes[:, 1::2].clamp(0, image_height)
-    return boxes
-
-
-def _xyxy_to_xywhn(
-    boxes: torch.Tensor, image_width: int, image_height: int
-) -> torch.Tensor:
-    xywh = _xyxy_to_xywh(boxes)
-    normalizer = boxes.new_tensor(
-        [image_width, image_height, image_width, image_height]
+    return xyxy_prediction_to_friendy(
+        boxes,
+        confidence,
+        detection[:, 6],
+        image_width=image_width,
+        image_height=image_height,
     )
-    return xywh / normalizer
 
 
 def _make_divisible(value: int, divisor: int) -> int:
