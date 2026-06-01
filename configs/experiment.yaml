@@ -8,13 +8,15 @@ datasets: # Dataset definitions for train, validation, and final test roles.
   train: # Training dataset list; each train dataset is paired with every model below.
     - name: chvg-dataset # Name used in run names and exported result summaries for this training dataset.
       images: /home/mercury/luka_RD/friendy_mercury/data/chvg_dataset/images # Directory containing training images for chvg-dataset.
-      labels: ../data/chvg_dataset/labels_universal # Remapped YOLO labels with helmet color classes collapsed.
+      labels: ../data/chvg_dataset/labels_universal_with_missing_ppe # Remapped YOLO labels with synthetic no_helmet/no_vest labels added.
       classes: # Class names for remapped chvg-dataset labels; list position is the remapped class ID.
         - head # Class ID 0 for chvg-dataset.
         - glass # Class ID 1 for chvg-dataset.
         - helmet # Class ID 2 for chvg-dataset; combines red/yellow/blue/white helmet labels.
         - vest # Class ID 3 for chvg-dataset.
         - person # Class ID 4 for chvg-dataset.
+        - no_helmet # Class ID 5 for chvg-dataset; synthetic label derived from unmatched head boxes.
+        - no_vest # Class ID 6 for chvg-dataset; synthetic label derived from unmatched person boxes.
 
     - name: kaggle-dataset # Name used in run names and exported result summaries for this training dataset.
       images: /home/mercury/luka_RD/friendy_mercury/data/kaggle_dataset/images # Directory containing training images for kaggle-dataset.
