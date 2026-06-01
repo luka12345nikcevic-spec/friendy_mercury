@@ -1,5 +1,8 @@
 # Friendy Mercury config reference.
 # Every uncommented field in this file is implemented and valid with the current code.
+# This lists all first-class config fields. Model, optimizer, and scheduler mappings
+# also accept extra keyword arguments through params or direct extra keys, which are
+# passed to the selected adapter, torch optimizer, or torch scheduler.
 # Copy this file to configs/experiment.yaml and edit paths/classes for your project.
 
 # Required. Human-readable experiment name.
@@ -50,6 +53,7 @@ models:
     weights_backbone: DEFAULT
     weights: null
     trainable_backbone_layers: null
+    # params: {}
 
   # YOLOX via vendored vendor/yolox code.
   - name: yolox
@@ -59,6 +63,7 @@ models:
     score_threshold: 0.3
     nms_threshold: 0.45
     act: silu
+    # params: {}
 
   # RT-DETR via transformers.
   - name: rtdetr
@@ -68,6 +73,7 @@ models:
     image_mean: [0.485, 0.456, 0.406]
     image_std: [0.229, 0.224, 0.225]
     ignore_mismatched_sizes: true
+    # params: {}
 
 # Optional. Training settings.
 training:
@@ -115,6 +121,7 @@ evaluation:
 # - weights: DEFAULT
 # - weights_backbone: DEFAULT
 # - trainable_backbone_layers: 0..5
+# - extra direct keys or params entries are passed to the torchvision RetinaNet builder.
 #
 # YOLOX variants:
 # - variant: yolox-nano
@@ -123,15 +130,20 @@ evaluation:
 # - variant: yolox-m
 # - variant: yolox-l
 # - variant: yolox-x
+# - act and other extra direct keys or params entries are passed to the vendored YOLOX builder.
 #
 # Models:
+# - name selects an adapter registered in registry.py. Currently: retinanet, yolox, rtdetr.
 # - num_classes: auto uses the current train dataset class count for each run.
 # - num_classes can also be a positive integer when every train dataset uses the same class count.
+# - params can hold adapter-specific keyword arguments. Direct extra model keys are also accepted
+#   and are merged with params, with params taking precedence on duplicate keys.
 #
 # RT-DETR:
 # - weights: true uses the default PekingU/rtdetr_r50vd checkpoint.
 # - weights: false or null builds from config without pretrained weights.
 # - id2label and label2id are supported as mappings if you need custom class names.
+# - extra direct keys or params entries are passed to RTDetrConfig or from_pretrained.
 #   Example:
 #   id2label: {0: helmet, 1: head, 2: vest}
 #   label2id: {helmet: 0, head: 1, vest: 2}
@@ -140,6 +152,15 @@ evaluation:
 # - name: adamw
 # - name: adam
 # - name: sgd
+# - optimizer can also be just a string, for example: optimizer: adamw
+# - params and extra direct keys are passed to the selected torch optimizer.
+#
+# Schedulers:
+# - scheduler can be null or false to disable scheduling.
+# - scheduler can also be just a string, for example: scheduler: cosine
+# - params and extra direct keys are passed to the selected torch scheduler.
+# - supported aliases include step/step_lr/steplr, multistep/multi_step/multi_step_lr/multisteplr,
+#   cosine/cosine_annealing/cosine_annealing_lr, and exponential/exponential_lr.
 #
 # Scheduler examples:
 # scheduler:

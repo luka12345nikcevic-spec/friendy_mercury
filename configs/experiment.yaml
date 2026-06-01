@@ -1,127 +1,124 @@
-# Friendy Mercury experiment config.
-# Paths are resolved relative to this YAML file.
+# Friendy Mercury experiment config. # Example experiment definition for training/evaluating model and dataset combinations.
+# Paths are resolved relative to this YAML file. # Relative paths below are interpreted from the configs/ directory.
 
-name: public-datasets
-output_dir: ../runs/public-datasets
+name: public-datasets # Human-readable experiment name; also used for the default run directory if output_dir is omitted.
+output_dir: ../runs/public-datasets # Directory where checkpoints, metrics, predictions, and summaries are written.
 
-datasets:
-  train:
-    - name: chvg-dataset
-      images: /home/mercury/luka_RD/friendy_mercury/data/chvg_dataset/images
-      labels: /home/mercury/luka_RD/friendy_mercury/data/chvg_dataset/labels
-      classes:
-        - head
-        - glass
-        - red
-        - yellow
-        - blue
-        - vest
-        - person
-        - white
+datasets: # Dataset definitions for train, validation, and final test roles.
+  train: # Training dataset list; each train dataset is paired with every model below.
+    - name: chvg-dataset # Name used in run names and exported result summaries for this training dataset.
+      images: /home/mercury/luka_RD/friendy_mercury/data/chvg_dataset/images # Directory containing training images for chvg-dataset.
+      labels: ../data/chvg_dataset/labels_universal # Remapped YOLO labels with helmet color classes collapsed.
+      classes: # Class names for remapped chvg-dataset labels; list position is the remapped class ID.
+        - head # Class ID 0 for chvg-dataset.
+        - glass # Class ID 1 for chvg-dataset.
+        - helmet # Class ID 2 for chvg-dataset; combines red/yellow/blue/white helmet labels.
+        - vest # Class ID 3 for chvg-dataset.
+        - person # Class ID 4 for chvg-dataset.
 
-    - name: kaggle-dataset
-      images: /home/mercury/luka_RD/friendy_mercury/data/kaggle_dataset/images
-      labels: /home/mercury/luka_RD/friendy_mercury/data/kaggle_dataset/labels
-      classes:
-        - Hardhat
-        - Mask
-        - NO-Hardhat
-        - NO-Mask
-        - NO-Safety Vest
-        - Person
-        - Safety Cone
-        - Safety Vest
-        - machinery
-        - vehicle
+    - name: kaggle-dataset # Name used in run names and exported result summaries for this training dataset.
+      images: /home/mercury/luka_RD/friendy_mercury/data/kaggle_dataset/images # Directory containing training images for kaggle-dataset.
+      labels: /home/mercury/luka_RD/friendy_mercury/data/kaggle_dataset/labels # Directory containing matching YOLO-format labels for kaggle-dataset.
+      classes: # Class names for kaggle-dataset; list position is the class ID used by its labels.
+        - helmet # Class ID 0 for kaggle-dataset.
+        - Mask # Class ID 1 for kaggle-dataset.
+        - no_helmet # Class ID 2 for kaggle-dataset.
+        - NO-Mask # Class ID 3 for kaggle-dataset.
+        - no_vest # Class ID 4 for kaggle-dataset.
+        - Person # Class ID 5 for kaggle-dataset.
+        - Safety Cone # Class ID 6 for kaggle-dataset.
+        - vest # Class ID 7 for kaggle-dataset.
+        - machinery # Class ID 8 for kaggle-dataset.
+        - vehicle # Class ID 9 for kaggle-dataset.
 
-    - name: ultralytics-dataset
-      images: /home/mercury/luka_RD/friendy_mercury/data/ultralytics_dataset/images
-      labels: /home/mercury/luka_RD/friendy_mercury/data/ultralytics_dataset/labels
-      classes:
-        - helmet
-        - vest
-        - goggles
-        - Person
-        - boots
-        - gloves
-        - no_boots
-        - no_gloves
-        - no_goggle
-        - no_helmet
-        - no_vest
+    - name: ultralytics-dataset # Name used in run names and exported result summaries for this training dataset.
+      images: /home/mercury/luka_RD/friendy_mercury/data/ultralytics_dataset/images # Directory containing training images for ultralytics-dataset.
+      labels: /home/mercury/luka_RD/friendy_mercury/data/ultralytics_dataset/labels # Directory containing matching YOLO-format labels for ultralytics-dataset.
+      classes: # Class names for ultralytics-dataset; list position is the class ID used by its labels.
+        - helmet # Class ID 0 for ultralytics-dataset.
+        - vest # Class ID 1 for ultralytics-dataset.
+        - goggles # Class ID 2 for ultralytics-dataset.
+        - Person # Class ID 3 for ultralytics-dataset.
+        - boots # Class ID 4 for ultralytics-dataset.
+        - gloves # Class ID 5 for ultralytics-dataset.
+        - no_boots # Class ID 6 for ultralytics-dataset.
+        - no_gloves # Class ID 7 for ultralytics-dataset.
+        - no_goggle # Class ID 8 for ultralytics-dataset.
+        - no_helmet # Class ID 9 for ultralytics-dataset.
+        - no_vest # Class ID 10 for ultralytics-dataset.
 
-  val:
-    name: ultralytics-val
-    images: /home/mercury/luka_RD/friendy_mercury/data/ultralytics_dataset/images
-    labels: /home/mercury/luka_RD/friendy_mercury/data/ultralytics_dataset/labels
-    classes:
-      - helmet
-      - vest
-      - goggles
-      - Person
-      - boots
-      - gloves
-      - no_boots
-      - no_gloves
-      - no_goggle
-      - no_helmet
-      - no_vest
+  val: # Optional validation dataset used for validation loss, best checkpoint selection, and validation metrics.
+    name: ultralytics-val # Name used in validation logs and exported result summaries.
+    images: /home/mercury/luka_RD/friendy_mercury/data/ultralytics_dataset/images # Directory containing validation images.
+    labels: /home/mercury/luka_RD/friendy_mercury/data/ultralytics_dataset/labels # Directory containing matching YOLO-format validation labels.
+    classes: # Class names for validation labels; list position is the validation class ID.
+      - helmet # Validation class ID 0.
+      - vest # Validation class ID 1.
+      - goggles # Validation class ID 2.
+      - Person # Validation class ID 3.
+      - boots # Validation class ID 4.
+      - gloves # Validation class ID 5.
+      - no_boots # Validation class ID 6.
+      - no_gloves # Validation class ID 7.
+      - no_goggle # Validation class ID 8.
+      - no_helmet # Validation class ID 9.
+      - no_vest # Validation class ID 10.
 
-  test:
-    name: test_0
-    images: /home/mercury/luka_RD/friendy_mercury/data/test_dataset_0/images
-    labels: /home/mercury/luka_RD/friendy_mercury/data/test_dataset_0/labels
-    classes:
-      - gloves
-      - goggles
-      - helmet
-      - no_gloves
-      - no_goggles
-      - no_helmet
-      - no_vest
-      - vest
+  test: # Optional final holdout dataset used for test metrics after training.
+    name: test_0 # Name used in test logs and exported result summaries.
+    images: /home/mercury/luka_RD/friendy_mercury/data/test_dataset_0/images # Directory containing test images.
+    labels: /home/mercury/luka_RD/friendy_mercury/data/test_dataset_0/labels # Directory containing matching YOLO-format test labels.
+    classes: # Class names for test labels; list position is the test class ID.
+      - gloves # Test class ID 0.
+      - goggles # Test class ID 1.
+      - helmet # Test class ID 2.
+      - no_gloves # Test class ID 3.
+      - no_goggles # Test class ID 4.
+      - no_helmet # Test class ID 5.
+      - no_vest # Test class ID 6.
+      - vest # Test class ID 7.
 
-models:
-  - name: retinanet
-    num_classes: auto
-    variant: resnet50_fpn_v2
-    weights_backbone: DEFAULT
-    weights: null
-    trainable_backbone_layers: null
+models: # Model definitions; every model is trained once for every dataset under datasets.train.
+  - name: retinanet # Selects the RetinaNet adapter.
+    num_classes: auto # Uses the current training dataset class count for each generated run.
+    variant: resnet50_fpn_v2 # Selects the torchvision RetinaNet architecture variant.
+    weights_backbone: DEFAULT # Loads default backbone weights when full model weights are not used.
+    weights: null # Disables pretrained full detection model weights.
+    trainable_backbone_layers: null # Lets torchvision choose how many backbone layers are trainable.
 
-  - name: yolox
-    num_classes: auto
-    variant: yolox-nano
-    weights: null
-    score_threshold: 0.3
-    nms_threshold: 0.45
-    act: silu
+  - name: yolox # Selects the YOLOX adapter.
+    num_classes: auto # Uses the current training dataset class count for each generated run.
+    variant: yolox-nano # Selects the YOLOX model size.
+    weights: null # Starts YOLOX without loading a checkpoint.
+    score_threshold: 0.3 # Default confidence threshold used by the YOLOX adapter when predicting directly.
+    nms_threshold: 0.45 # Non-maximum suppression IoU threshold for YOLOX predictions.
+    act: silu # Activation passed through to the YOLOX model builder.
 
-  - name: rtdetr
-    num_classes: auto
-    weights: PekingU/rtdetr_r50vd
-    score_threshold: 0.5
-    image_mean: [0.485, 0.456, 0.406]
-    image_std: [0.229, 0.224, 0.225]
-    ignore_mismatched_sizes: true
+  - name: rtdetr # Selects the RT-DETR adapter.
+    num_classes: auto # Uses the current training dataset class count for each generated run.
+    weights: PekingU/rtdetr_r50vd # Hugging Face checkpoint used to initialize RT-DETR.
+    score_threshold: 0.5 # Default confidence threshold used by the RT-DETR adapter when predicting directly.
+    image_mean: [0.485, 0.456, 0.406] # Per-channel image normalization means for RT-DETR input tensors.
+    image_std: [0.229, 0.224, 0.225] # Per-channel image normalization standard deviations for RT-DETR input tensors.
+    ignore_mismatched_sizes: true # Allows loading pretrained weights when the configured class count differs.
 
-training:
-  epochs: 100
-  batch_size: 4
-  num_workers: 4
-  device: cuda
-  seed: 42
-  amp: false
-  gradient_clip_norm: null
-  optimizer:
-    name: adamw
-    lr: 0.0001
-    weight_decay: 0.0001
-    params: {}
-  scheduler: null
+training: # Training loop settings shared by all generated runs.
+  epochs: 100 # Number of epochs to train each model/dataset run.
+  batch_size: 4 # Number of images per training batch.
+  num_workers: 4 # Number of DataLoader worker processes for training batches.
+  device: cuda # Torch device selector; use cuda, cpu, or auto.
+  seed: 42 # Random seed used for Python, NumPy, and Torch reproducibility.
+  amp: false # Enables CUDA automatic mixed precision when true and the device is CUDA.
+  gradient_clip_norm: null # Maximum gradient norm; null disables gradient clipping.
+  optimizer: # Optimizer configuration for model parameter updates.
+    name: adamw # Optimizer type; supported values are adamw, adam, and sgd.
+    lr: 0.0001 # Learning rate passed to the optimizer.
+    weight_decay: 0.0001 # Weight decay passed to the optimizer.
+    params: {} # Extra optimizer keyword arguments passed through to torch.
+  scheduler: null # Learning rate scheduler configuration; null disables scheduling.
 
-evaluation:
-  batch_size: 4
-  num_workers: 4
-  score_threshold: 0.001
-  iou_thresholds: [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95]
+evaluation: # Evaluation and metric settings used for validation and test passes.
+  batch_size: 4 # Number of images per evaluation batch; defaults to training.batch_size when omitted.
+  num_workers: 4 # Number of DataLoader worker processes for evaluation; defaults to training.num_workers when omitted.
+  score_threshold: 0.001 # Minimum prediction confidence included in metric computation.
+  iou_thresholds: [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95] # IoU thresholds used for mAP-style metrics.

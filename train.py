@@ -162,7 +162,13 @@ def train_model(
         val_summary = None
         if val_loader is not None:
             print(f"[train] Run {run_name} epoch {epoch}: evaluating validation loss")
-            val_summary = evaluate_loss(adapter, val_loader, device)
+            val_summary = evaluate_loss(
+                adapter,
+                val_loader,
+                device,
+                source_classes=run.val_dataset.classes if run.val_dataset is not None else None,
+                model_classes=train_dataset_config.classes,
+            )
 
         if scheduler is not None:
             scheduler.step()
@@ -303,13 +309,20 @@ def train_one_epoch(
 
 
 @torch.no_grad()
-def evaluate_loss(adapter: Any, loader: DataLoader, device: torch.device) -> Dict[str, Any]:
+def evaluate_loss(
+    adapter: Any,
+    loader: DataLoader,
+    device: torch.device,
+    source_classes: Optional[Dict[int, str]] = None,
+    model_classes: Optional[Dict[int, str]] = None,
+) -> Dict[str, Any]:
     total_loss = 0.0
     total_images = 0
     loss_totals: Dict[str, float] = {}
 
     for images, targets in loader:
         images, targets = _move_batch_to_device(images, targets, device)
+        targets = _remap_targets_to_model_classes(targets, source_classes, model_classes)
         loss, loss_items = adapter.training_step(images, targets)
         batch_size = len(images)
         total_loss += float(loss.detach().cpu()) * batch_size
@@ -472,6 +485,52 @@ def _move_batch_to_device(
             }
         )
     return moved_images, moved_targets
+
+
+def _remap_targets_to_model_classes(
+    targets: List[Dict[str, Any]],
+    source_classes: Optional[Dict[int, str]],
+    model_classes: Optional[Dict[int, str]],
+) -> List[Dict[str, Any]]:
+    if source_classes is None or model_classes is None:
+        return targets
+
+    model_name_to_id = {str(name): int(class_id) for class_id, name in model_classes.items()}
+    source_to_model_id = {
+        int(source_id): model_name_to_id[str(source_name)]
+        for source_id, source_name in source_classes.items()
+        if str(source_name) in model_name_to_id
+    }
+
+    return [
+        _remap_target_to_model_classes(target, source_to_model_id)
+        for target in targets
+    ]
+
+
+def _remap_target_to_model_classes(
+    target: Dict[str, Any],
+    source_to_model_id: Dict[int, int],
+) -> Dict[str, Any]:
+    labels = target["labels"].long()
+    if labels.numel() == 0:
+        return target
+
+    remapped_labels = torch.full_like(labels, fill_value=-1)
+    for source_id, model_id in source_to_model_id.items():
+        remapped_labels[labels == source_id] = int(model_id)
+
+    keep = remapped_labels >= 0
+    remapped_target = dict(target)
+    remapped_target["labels"] = remapped_labels[keep]
+    remapped_target["boxes"] = target["boxes"][keep]
+
+    if "area" in target and torch.is_tensor(target["area"]):
+        remapped_target["area"] = target["area"][keep]
+    if "iscrowd" in target and torch.is_tensor(target["iscrowd"]):
+        remapped_target["iscrowd"] = target["iscrowd"][keep]
+
+    return remapped_target
 
 
 def _dataset_cache_key(dataset_config: DatasetConfig) -> tuple:
