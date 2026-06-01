@@ -7,8 +7,8 @@ output_dir: ../runs/public-datasets
 datasets:
   train:
     - name: chvg-dataset
-      images: /home/luka/workspace/friendy_mercury/data/chvg_dataset/images
-      labels: /home/luka/workspace/friendy_mercury/data/chvg_dataset/labels
+      images: /home/mercury/luka_RD/friendy_mercury/data/chvg_dataset/images
+      labels: /home/mercury/luka_RD/friendy_mercury/data/chvg_dataset/labels
       classes:
         - head
         - glass
@@ -20,8 +20,8 @@ datasets:
         - white
 
     - name: kaggle-dataset
-      images: /home/luka/workspace/friendy_mercury/data/kaggle_dataset/images
-      labels: /home/luka/workspace/friendy_mercury/data/kaggle_dataset/labels
+      images: /home/mercury/luka_RD/friendy_mercury/data/kaggle_dataset/images
+      labels: /home/mercury/luka_RD/friendy_mercury/data/kaggle_dataset/labels
       classes:
         - Hardhat
         - Mask
@@ -35,8 +35,8 @@ datasets:
         - vehicle
 
     - name: ultralytics-dataset
-      images: /home/luka/workspace/friendy_mercury/data/ultralytics_dataset/images
-      labels: /home/luka/workspace/friendy_mercury/data/ultralytics_dataset/labels
+      images: /home/mercury/luka_RD/friendy_mercury/data/ultralytics_dataset/images
+      labels: /home/mercury/luka_RD/friendy_mercury/data/ultralytics_dataset/labels
       classes:
         - helmet
         - vest
@@ -52,8 +52,8 @@ datasets:
 
   val:
     name: ultralytics-val
-    images: /home/luka/workspace/friendy_mercury/data/ultralytics_dataset/images
-    labels: /home/luka/workspace/friendy_mercury/data/ultralytics_dataset/labels
+    images: /home/mercury/luka_RD/friendy_mercury/data/ultralytics_dataset/images
+    labels: /home/mercury/luka_RD/friendy_mercury/data/ultralytics_dataset/labels
     classes:
       - helmet
       - vest
@@ -69,8 +69,8 @@ datasets:
 
   test:
     name: test_0
-    images: /home/luka/workspace/friendy_mercury/data/test_dataset_0/images
-    labels: /home/luka/workspace/friendy_mercury/data/test_dataset_0/labels
+    images: /home/mercury/luka_RD/friendy_mercury/data/test_dataset_0/images
+    labels: /home/mercury/luka_RD/friendy_mercury/data/test_dataset_0/labels
     classes:
       - gloves
       - goggles
