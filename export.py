@@ -1,5 +1,6 @@
 import argparse
 import csv
+import re
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -63,6 +64,54 @@ UNIVERSAL_COLUMNS = [
     "test_num_predictions",
 ]
 
+PIVOT_ID_COLUMNS = [
+    "train_dataset",
+    "train_dataset_images",
+    "train_dataset_labels",
+    "train_dataset_role",
+    "val_dataset",
+    "val_dataset_images",
+    "val_dataset_labels",
+    "val_dataset_role",
+    "test_dataset",
+    "test_dataset_images",
+    "test_dataset_labels",
+    "test_dataset_role",
+]
+
+PIVOT_MODEL_COLUMNS = [
+    "run_index",
+    "run_name",
+    "model_num_classes",
+    "best_epoch",
+    "best_loss",
+    "last_epoch",
+    "last_train_loss",
+    "last_val_loss",
+    "best_checkpoint",
+    "last_checkpoint",
+    "val_checkpoint",
+    "val_predictions",
+    "val_map50_95",
+    "val_map50",
+    "val_precision",
+    "val_recall",
+    "val_f1",
+    "val_num_images",
+    "val_num_targets",
+    "val_num_predictions",
+    "test_checkpoint",
+    "test_predictions",
+    "test_map50_95",
+    "test_map50",
+    "test_precision",
+    "test_recall",
+    "test_f1",
+    "test_num_images",
+    "test_num_targets",
+    "test_num_predictions",
+]
+
 # Kept for exporting one YAML file directly. The full pipeline uses UNIVERSAL_COLUMNS.
 DEFAULT_COLUMNS = [
     "run_index",
@@ -111,9 +160,12 @@ def export_universal_csv(
     if test_results_path is not None and Path(test_results_path).exists():
         _merge_eval_results(rows_by_key, Path(test_results_path), prefix="test")
 
-    selected_columns = list(columns or UNIVERSAL_COLUMNS)
     rows = [rows_by_key[key] for key in sorted(rows_by_key, key=_sort_key)]
-    return _write_csv(rows, output_path, selected_columns)
+    if columns is not None:
+        return _write_csv(rows, output_path, list(columns))
+
+    pivoted_rows, pivoted_columns = _pivot_models_to_columns(rows)
+    return _write_csv(pivoted_rows, output_path, pivoted_columns)
 
 
 def export_csv(
@@ -235,6 +287,48 @@ def _write_csv(rows: List[Dict[str, Any]], output_path: str | Path, columns: Lis
             writer.writerow(row)
     print(f"[export] Wrote CSV: {output_path} rows={len(rows)}")
     return output_path
+
+
+def _pivot_models_to_columns(rows: List[Dict[str, Any]]) -> tuple[List[Dict[str, Any]], List[str]]:
+    grouped_rows: Dict[Any, Dict[str, Any]] = {}
+    first_run_index_by_group: Dict[Any, Any] = {}
+    model_prefix_counts: Dict[Any, Dict[str, int]] = {}
+    model_columns: List[str] = []
+
+    for row in rows:
+        group_key = _pivot_group_key(row)
+        output_row = grouped_rows.setdefault(group_key, _pivot_base_row(row))
+        first_run_index_by_group.setdefault(group_key, row.get("run_index"))
+
+        base_prefix = _model_column_prefix(row.get("model"))
+        prefix_count = model_prefix_counts.setdefault(group_key, {}).get(base_prefix, 0) + 1
+        model_prefix_counts[group_key][base_prefix] = prefix_count
+        prefix = base_prefix if prefix_count == 1 else f"{base_prefix}_{prefix_count}"
+
+        for column in PIVOT_MODEL_COLUMNS:
+            pivot_column = f"{prefix}_{column}"
+            output_row[pivot_column] = row.get(column)
+            if pivot_column not in model_columns:
+                model_columns.append(pivot_column)
+
+    pivoted_rows = [
+        grouped_rows[key]
+        for key in sorted(grouped_rows, key=lambda key: _sort_key(first_run_index_by_group[key]))
+    ]
+    return pivoted_rows, PIVOT_ID_COLUMNS + model_columns
+
+
+def _pivot_base_row(row: Dict[str, Any]) -> Dict[str, Any]:
+    return {column: row.get(column) for column in PIVOT_ID_COLUMNS}
+
+
+def _pivot_group_key(row: Dict[str, Any]) -> tuple[Any, ...]:
+    return tuple(row.get(column) for column in PIVOT_ID_COLUMNS)
+
+
+def _model_column_prefix(model: Any) -> str:
+    prefix = re.sub(r"[^0-9a-zA-Z]+", "_", str(model or "model")).strip("_").lower()
+    return prefix or "model"
 
 
 def _result_key(result: Dict[str, Any]) -> Any:

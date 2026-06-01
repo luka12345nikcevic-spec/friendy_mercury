@@ -154,7 +154,7 @@ last.pt
 
 ## Export Metrics To CSV
 
-Export one universal CSV where every row is one dataset/model run and metric columns are prefixed by split:
+Export one universal CSV where each train dataset is one row and model results are grouped into model-prefixed columns:
 
 ```bash
 python export.py runs/helmet-benchmark/results.yaml \
@@ -163,7 +163,7 @@ python export.py runs/helmet-benchmark/results.yaml \
   --output runs/helmet-benchmark/metrics.csv
 ```
 
-Description: merges training results, validation metrics, and test metrics into one matrix-friendly CSV. Columns include run identity, train dataset, model, training losses, `val_*` metrics, and `test_*` metrics.
+Description: merges training results, validation metrics, and test metrics into one matrix-friendly CSV. Columns include train/eval dataset identity plus model-prefixed run fields, training losses, `val_*` metrics, and `test_*` metrics such as `yolox_val_map50` or `retinanet_test_f1`.
 
 If `--output` is omitted, the CSV is written next to the first YAML file with a `.csv` suffix.
 
