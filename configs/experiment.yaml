@@ -109,7 +109,7 @@ training:
   epochs: 100
   batch_size: 4
   num_workers: 4
-  device: auto
+  device: cuda
   seed: 42
   amp: false
   gradient_clip_norm: null

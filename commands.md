@@ -30,6 +30,24 @@ configs/config_reference.yaml
 
 Description: this is a commented reference file. Use it as documentation and copy the fields you need into `configs/experiment.yaml`.
 
+
+## Check GPU Visibility
+
+Before starting a server run, verify that PyTorch can see CUDA:
+
+```bash
+nvidia-smi
+python -c "import torch; print(torch.__version__); print(torch.version.cuda); print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else \"no cuda\")"
+```
+
+If `torch.cuda.is_available()` prints `False`, the experiment will not use the GPU. On a GPU server, make sure the job/container is launched with GPU access and install matching CUDA-enabled PyTorch wheels, for example:
+
+```bash
+pip install --upgrade torch torchvision --index-url https://download.pytorch.org/whl/cu121
+```
+
+The default experiment config uses `training.device: cuda`, so it fails fast with diagnostics instead of silently running on CPU.
+
 ## Run Full Pipeline
 
 Run the complete experiment from one config file:

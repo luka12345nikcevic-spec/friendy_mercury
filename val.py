@@ -9,11 +9,13 @@ import yaml
 try:
     from .config import DatasetConfig, ExperimentConfig, ExperimentRun, build_experiment_runs, load_config
     from .data import build_eval_dataloader
+    from .device import resolve_device
     from .registry import build_model
     from .train import predict_dataset
 except ImportError:
     from config import DatasetConfig, ExperimentConfig, ExperimentRun, build_experiment_runs, load_config
     from data import build_eval_dataloader
+    from device import resolve_device
     from registry import build_model
     from train import predict_dataset
 
@@ -38,7 +40,7 @@ def val_experiment(
     if checkpoint not in {"best", "last"}:
         raise ValueError("checkpoint must be 'best' or 'last'")
 
-    device = _resolve_device(config.training.device)
+    device = resolve_device(config.training.device)
     print(f"[val] Using device: {device}")
     loaders: Dict[DatasetConfig, Any] = {}
     results = []
@@ -165,12 +167,6 @@ def _dataset_cache_key(dataset_config: DatasetConfig) -> tuple:
         str(dataset_config.labels),
         dataset_config.role,
     )
-
-
-def _resolve_device(device_name: str) -> torch.device:
-    if device_name == "auto":
-        return torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    return torch.device(device_name)
 
 
 def _write_yaml(path: str | Path, value: Any) -> None:
