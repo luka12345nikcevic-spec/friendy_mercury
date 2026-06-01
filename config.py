@@ -97,6 +97,7 @@ class ExperimentRun:
 
 def load_config(config_path: str | Path) -> ExperimentConfig:
     config_path = Path(config_path).resolve()
+    print(f"[config] Loading experiment config: {config_path}")
     with open(config_path) as file:
         raw = yaml.safe_load(file) or {}
 
@@ -116,7 +117,7 @@ def load_config(config_path: str | Path) -> ExperimentConfig:
     training = _parse_training(raw.get("training", {}))
     evaluation = _parse_evaluation(raw.get("evaluation", {}))
 
-    return ExperimentConfig(
+    config = ExperimentConfig(
         name=name,
         train_datasets=train_datasets,
         val_dataset=val_dataset,
@@ -127,6 +128,13 @@ def load_config(config_path: str | Path) -> ExperimentConfig:
         evaluation=evaluation,
         raw=raw,
     )
+    print(
+        "[config] Loaded "
+        f"name={config.name} train_datasets={len(config.train_datasets)} "
+        f"models={len(config.models)} val={config.val_dataset is not None} "
+        f"test={config.test_dataset is not None} output_dir={config.output_dir}"
+    )
+    return config
 
 
 def build_experiment_runs(config: ExperimentConfig) -> List[ExperimentRun]:
@@ -143,6 +151,12 @@ def build_experiment_runs(config: ExperimentConfig) -> List[ExperimentRun]:
                     test_dataset=config.test_dataset,
                 )
             )
+    print(f"[config] Expanded experiment matrix to {len(runs)} run(s)")
+    for run in runs:
+        print(
+            f"[config] Run {run.index}: train={run.train_dataset.name} "
+            f"model={run.model.name} num_classes={run.model.num_classes}"
+        )
     return runs
 
 
@@ -191,6 +205,10 @@ def _parse_dataset(value: Any, base_dir: Path, field_name: str, role: str) -> Da
         raise ValueError(f"{field_name}.weight must be greater than 0")
 
     name = str(value.get("name") or images_path.stem)
+    print(
+        f"[config] Dataset {field_name}: name={name} role={role} "
+        f"images={images_path} labels={labels_path} classes={len(classes)}"
+    )
     return DatasetConfig(
         name=name,
         images=images_path,

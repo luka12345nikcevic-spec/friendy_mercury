@@ -95,6 +95,10 @@ def export_universal_csv(
     test_results_path: str | Path | None = None,
     columns: Optional[Iterable[str]] = None,
 ) -> Path:
+    print(
+        f"[export] Exporting universal CSV train_results={train_results_path} "
+        f"val_results={val_results_path} test_results={test_results_path} output={output_path}"
+    )
     rows_by_key: Dict[Any, Dict[str, Any]] = {}
 
     for result in _load_results(Path(train_results_path)):
@@ -117,6 +121,7 @@ def export_csv(
     output_path: str | Path,
     columns: Optional[Iterable[str]] = None,
 ) -> Path:
+    print(f"[export] Exporting CSV results={results_path} output={output_path}")
     results_path = Path(results_path)
     rows = [_flatten_result(result) for result in _load_results(results_path)]
     return _write_csv(rows, output_path, list(columns or DEFAULT_COLUMNS))
@@ -228,6 +233,7 @@ def _write_csv(rows: List[Dict[str, Any]], output_path: str | Path, columns: Lis
         writer.writeheader()
         for row in rows:
             writer.writerow(row)
+    print(f"[export] Wrote CSV: {output_path} rows={len(rows)}")
     return output_path
 
 

@@ -19,14 +19,18 @@ except ImportError:
 
 
 def run_from_config(config_path: str | Path) -> Dict[str, Any]:
+    print(f"[run] Starting full pipeline from config: {config_path}")
     config = load_config(config_path)
     return run_experiment(config)
 
 
 def run_experiment(config: ExperimentConfig) -> Dict[str, Any]:
     config.output_dir.mkdir(parents=True, exist_ok=True)
+    print(f"[run] Output directory: {config.output_dir}")
 
+    print("[run] Training phase start")
     train_results = train_experiment(config, evaluate_after_train=False)
+    print(f"[run] Training phase done: runs={len(train_results)}")
     train_results_path = config.output_dir / "results.yaml"
 
     summary = {
@@ -39,8 +43,10 @@ def run_experiment(config: ExperimentConfig) -> Dict[str, Any]:
     }
 
     checkpoint = _default_eval_checkpoint(config)
+    print(f"[run] Evaluation checkpoint policy: {checkpoint}")
 
     if config.val_dataset is not None:
+        print("[run] Validation phase start")
         val_results = val_experiment(config, split="val", checkpoint=checkpoint)
         val_results_path = config.output_dir / "val_results.yaml"
         summary.update(
@@ -51,6 +57,7 @@ def run_experiment(config: ExperimentConfig) -> Dict[str, Any]:
         )
 
     if config.test_dataset is not None:
+        print("[run] Test phase start")
         test_results = val_experiment(config, split="test", checkpoint=checkpoint)
         test_results_path = config.output_dir / "test_results.yaml"
         summary.update(
@@ -60,6 +67,7 @@ def run_experiment(config: ExperimentConfig) -> Dict[str, Any]:
             }
         )
 
+    print("[run] Export phase start")
     metrics_csv_path = export_universal_csv(
         train_results_path,
         config.output_dir / "metrics.csv",
@@ -72,6 +80,7 @@ def run_experiment(config: ExperimentConfig) -> Dict[str, Any]:
     summary_path = config.output_dir / "run_summary.yaml"
     _write_yaml(summary_path, _to_builtin(summary))
     summary["summary"] = str(summary_path)
+    print(f"[run] Pipeline complete: summary={summary_path} metrics_csv={metrics_csv_path}")
     return summary
 
 

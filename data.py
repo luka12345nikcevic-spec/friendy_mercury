@@ -62,6 +62,16 @@ class YoloDetectionDataset:
         if not self.labels_root.is_dir():
             raise FileNotFoundError(f"Could not resolve labels directory: {self.labels_root}")
 
+        label_count = sum(
+            1
+            for image_path in self.image_paths
+            if _image_to_label_path(image_path, self.images_root, self.labels_root).exists()
+        )
+        print(
+            f"[data] Dataset ready: images={len(self.image_paths)} labels_found={label_count} "
+            f"classes={len(self.names)} images_root={self.images_root} labels_root={self.labels_root}"
+        )
+
     def __len__(self):
         return len(self.image_paths)
 
@@ -105,6 +115,10 @@ def detection_collate_fn(batch):
 
 
 def build_dataset(dataset_config: DatasetConfig) -> YoloDetectionDataset:
+    print(
+        f"[data] Building dataset name={dataset_config.name} role={dataset_config.role} "
+        f"classes={len(dataset_config.classes)}"
+    )
     return YoloDetectionDataset(
         images_dir=dataset_config.images,
         labels_dir=dataset_config.labels,
@@ -117,6 +131,11 @@ def build_train_dataloader(
     dataset_config: DatasetConfig,
 ) -> DataLoader:
     dataset = build_dataset(dataset_config)
+    print(
+        f"[data] Building train dataloader dataset={dataset_config.name} "
+        f"batch_size={config.training.batch_size} workers={config.training.num_workers} "
+        f"shuffle=True"
+    )
     return DataLoader(
         dataset,
         batch_size=config.training.batch_size,
@@ -140,6 +159,10 @@ def build_eval_dataloader(
         num_workers = config.training.num_workers
 
     dataset = build_dataset(dataset_config)
+    print(
+        f"[data] Building eval dataloader dataset={dataset_config.name} "
+        f"batch_size={batch_size} workers={num_workers} shuffle=False"
+    )
     return DataLoader(
         dataset,
         batch_size=batch_size,

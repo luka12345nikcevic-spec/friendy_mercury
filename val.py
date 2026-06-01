@@ -23,6 +23,7 @@ def val_from_config(
     split: str = "test",
     checkpoint: str = "best",
 ) -> List[Dict[str, Any]]:
+    print(f"[val] Starting from config: {config_path} split={split} checkpoint={checkpoint}")
     config = load_config(config_path)
     return val_experiment(config, split=split, checkpoint=checkpoint)
 
@@ -38,12 +39,16 @@ def val_experiment(
         raise ValueError("checkpoint must be 'best' or 'last'")
 
     device = _resolve_device(config.training.device)
+    print(f"[val] Using device: {device}")
     loaders: Dict[DatasetConfig, Any] = {}
     results = []
 
-    for run in build_experiment_runs(config):
+    runs = build_experiment_runs(config)
+    print(f"[val] Evaluating {len(runs)} run(s) split={split} checkpoint={checkpoint}")
+    for run in runs:
         dataset_config = _run_eval_dataset(run, split)
         if dataset_config is None:
+            print(f"[val] Skipping run {run.name}: no {split} dataset configured")
             continue
 
         loader = _get_eval_loader(config, dataset_config, loaders)
@@ -60,6 +65,7 @@ def val_experiment(
 
     output_path = config.output_dir / f"{split}_results.yaml"
     _write_yaml(output_path, _to_builtin(results))
+    print(f"[val] Wrote {split} results: {output_path}")
     return results
 
 
@@ -75,9 +81,14 @@ def evaluate_run(
 ) -> Dict[str, Any]:
     run_dir = config.output_dir / run.name
     checkpoint_path = _checkpoint_path(run_dir, checkpoint)
+    print(
+        f"[val] Evaluating run={run.name} model={run.model.name} "
+        f"dataset={dataset_config.name} checkpoint={checkpoint_path}"
+    )
     if not checkpoint_path.exists():
         raise FileNotFoundError(f"Missing checkpoint for run {run.name}: {checkpoint_path}")
 
+    print(f"[val] Building model adapter: {run.model.name}")
     adapter = build_model(
         run.model.name,
         num_classes=run.model.num_classes,
@@ -85,6 +96,7 @@ def evaluate_run(
     )
     adapter.to(device)
 
+    print(f"[val] Loading checkpoint: {checkpoint_path}")
     state = torch.load(checkpoint_path, map_location=device)
     adapter.model.load_state_dict(state["model_state_dict"])
 
@@ -116,6 +128,7 @@ def evaluate_run(
         "metrics": metrics,
     }
     _write_yaml(run_dir / f"{split}_result.yaml", _to_builtin(result))
+    print(f"[val] Run {run.name} complete: result={run_dir / f'{split}_result.yaml'}")
     return result
 
 
@@ -133,8 +146,11 @@ def _get_eval_loader(
     cache_key = _dataset_cache_key(dataset_config)
     loader = cache.get(cache_key)
     if loader is None:
+        print(f"[val] Creating eval loader for dataset={dataset_config.name} role={dataset_config.role}")
         loader = build_eval_dataloader(dataset_config, config)
         cache[cache_key] = loader
+    else:
+        print(f"[val] Reusing eval loader for dataset={dataset_config.name} role={dataset_config.role}")
     return loader
 
 

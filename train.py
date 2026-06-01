@@ -25,6 +25,7 @@ def train_from_config(
     evaluate_after_train: bool = True,
 ) -> List[Dict[str, Any]]:
     """Train every model declared in one Friendy Mercury YAML config."""
+    print(f"[train] Starting from config: {config_path}")
     config = load_config(config_path)
     return train_experiment(config, evaluate_after_train=evaluate_after_train)
 
@@ -34,16 +35,22 @@ def train_experiment(
     evaluate_after_train: bool = True,
 ) -> List[Dict[str, Any]]:
     if config.training.seed is not None:
+        print(f"[train] Setting random seed: {config.training.seed}")
         _set_seed(config.training.seed)
 
     device = _resolve_device(config.training.device)
+    print(f"[train] Using device: {device}")
     config.output_dir.mkdir(parents=True, exist_ok=True)
+    print(f"[train] Output directory: {config.output_dir}")
     _write_yaml(config.output_dir / "config.resolved.yaml", _to_builtin(config))
+    print(f"[train] Wrote resolved config: {config.output_dir / 'config.resolved.yaml'}")
 
     train_loaders: Dict[DatasetConfig, DataLoader] = {}
     eval_loaders: Dict[DatasetConfig, DataLoader] = {}
     results = []
-    for run in build_experiment_runs(config):
+    runs = build_experiment_runs(config)
+    print(f"[train] Training {len(runs)} run(s)")
+    for run in runs:
         train_loader = _get_train_loader(config, run.train_dataset, train_loaders)
         val_loader = _get_eval_loader(config, run.val_dataset, eval_loaders)
         test_loader = _get_eval_loader(config, run.test_dataset, eval_loaders)
@@ -71,8 +78,11 @@ def _get_train_loader(
     cache_key = _dataset_cache_key(dataset_config)
     loader = cache.get(cache_key)
     if loader is None:
+        print(f"[train] Creating train loader for dataset={dataset_config.name}")
         loader = build_train_dataloader(config, dataset_config)
         cache[cache_key] = loader
+    else:
+        print(f"[train] Reusing train loader for dataset={dataset_config.name}")
     return loader
 
 
@@ -87,8 +97,11 @@ def _get_eval_loader(
     cache_key = _dataset_cache_key(dataset_config)
     loader = cache.get(cache_key)
     if loader is None:
+        print(f"[train] Creating eval loader for dataset={dataset_config.name} role={dataset_config.role}")
         loader = build_eval_dataloader(dataset_config, config)
         cache[cache_key] = loader
+    else:
+        print(f"[train] Reusing eval loader for dataset={dataset_config.name} role={dataset_config.role}")
     return loader
 
 
@@ -106,23 +119,35 @@ def train_model(
     run_name = run.name
     run_dir = config.output_dir / run_name
     run_dir.mkdir(parents=True, exist_ok=True)
+    print(
+        f"[train] Run {run.index} start: name={run_name} model={model_config.name} "
+        f"num_classes={model_config.num_classes} train_dataset={train_dataset_config.name}"
+    )
+    print(f"[train] Run directory: {run_dir}")
 
+    print(f"[train] Building model adapter: {model_config.name}")
     adapter = build_model(
         model_config.name,
         num_classes=model_config.num_classes,
         **model_config.params,
     )
     adapter.to(device)
+    print(f"[train] Model moved to device: {device}")
 
     optimizer = build_optimizer(adapter.model.parameters(), config)
     scheduler = build_scheduler(optimizer, config)
     scaler = _build_grad_scaler(config, device)
+    print(
+        f"[train] Optimizer={config.training.optimizer.name} lr={config.training.optimizer.lr} "
+        f"scheduler={config.training.scheduler.name} amp={scaler is not None}"
+    )
 
     history = []
     best_score = None
     best_epoch = None
 
     for epoch in range(1, config.training.epochs + 1):
+        print(f"[train] Run {run_name} epoch {epoch}/{config.training.epochs} start")
         train_summary = train_one_epoch(
             adapter=adapter,
             loader=train_loader,
@@ -134,6 +159,7 @@ def train_model(
 
         val_summary = None
         if val_loader is not None:
+            print(f"[train] Run {run_name} epoch {epoch}: evaluating validation loss")
             val_summary = evaluate_loss(adapter, val_loader, device)
 
         if scheduler is not None:
@@ -166,14 +192,24 @@ def train_model(
             "history": history,
         }
         save_checkpoint(checkpoint, run_dir / "last.pt")
+        print(f"[train] Saved checkpoint: {run_dir / 'last.pt'}")
         if is_best:
             save_checkpoint(checkpoint, run_dir / "best.pt")
+            print(f"[train] Saved new best checkpoint: {run_dir / 'best.pt'}")
 
         _write_yaml(run_dir / "history.yaml", _to_builtin(history))
+        print(
+            f"[train] Run {run_name} epoch {epoch} done: "
+            f"train_loss={train_summary.get('loss')} "
+            f"val_loss={val_summary.get('loss') if val_summary else None} "
+            f"lr={_current_lr(optimizer)} best={is_best}"
+        )
 
     if evaluate_after_train and test_loader is not None:
+        print(f"[train] Run {run_name}: running post-train test prediction")
         best_checkpoint = run_dir / "best.pt"
         if val_loader is not None and best_checkpoint.exists():
+            print(f"[train] Loading best checkpoint for test: {best_checkpoint}")
             state = torch.load(best_checkpoint, map_location=device)
             adapter.model.load_state_dict(state["model_state_dict"])
         prediction_path = run_dir / "test_predictions.pt"
@@ -213,6 +249,7 @@ def train_model(
         "test_metrics": test_metrics,
     }
     _write_yaml(run_dir / "result.yaml", _to_builtin(result))
+    print(f"[train] Run {run_name} complete: result={run_dir / 'result.yaml'}")
     return result
 
 
@@ -296,9 +333,11 @@ def predict_dataset(
     records = []
     all_predictions = []
     all_targets = []
-    for images, targets in loader:
+    print(f"[train] Predicting dataset to: {output_path}")
+    for batch_index, (images, targets) in enumerate(loader, start=1):
         images, targets = _move_batch_to_device(images, targets, device)
         predictions = _predict_with_config(adapter, images, config)
+        print(f"[train] Predicted batch {batch_index}: images={len(images)}")
         for target, prediction in zip(targets, predictions):
             prediction = prediction.detach().cpu()
             target_cpu = _target_to_cpu(target)
@@ -313,8 +352,9 @@ def predict_dataset(
                 }
             )
     torch.save(records, output_path)
+    print(f"[train] Saved predictions: {output_path} records={len(records)}")
 
-    return evaluate_detection(
+    metrics = evaluate_detection(
         all_predictions,
         all_targets,
         iou_thresholds=config.evaluation.iou_thresholds if config is not None else None,
@@ -324,6 +364,12 @@ def predict_dataset(
         target_classes=target_classes,
         eval_classes=eval_classes,
     )
+    print(
+        f"[train] Metrics: map50={metrics.get('map50')} "
+        f"map50_95={metrics.get('map50_95')} precision={metrics.get('precision')} "
+        f"recall={metrics.get('recall')}"
+    )
+    return metrics
 
 
 def _predict_with_config(
