@@ -203,13 +203,14 @@ def build_rtdetr(
         )
         model = RTDetrForObjectDetection(config)
     else:
+        config = RTDetrConfig.from_pretrained(weights, **config_kwargs)
+        config.id2label = id2label
+        config.label2id = label2id
+        config.num_labels = num_classes
         model = RTDetrForObjectDetection.from_pretrained(
             weights,
-            num_labels=num_classes,
-            id2label=id2label,
-            label2id=label2id,
+            config=config,
             ignore_mismatched_sizes=ignore_mismatched_sizes,
-            **config_kwargs,
         )
 
     return RTDETRAdapter(
