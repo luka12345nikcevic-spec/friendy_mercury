@@ -102,7 +102,7 @@ models: # Model definitions; every model is trained once for every dataset under
     score_threshold: 0.5 # Default confidence threshold used by the RT-DETR adapter when predicting directly.
     image_mean: [0.485, 0.456, 0.406] # Per-channel image normalization means for RT-DETR input tensors.
     image_std: [0.229, 0.224, 0.225] # Per-channel image normalization standard deviations for RT-DETR input tensors.
-    input_max_size: 640 # Downscales large images before RT-DETR training/inference to keep feature maps tractable.
+    input_max_size: 960 # Downscales large images before RT-DETR training/inference to keep feature maps tractable.
     ignore_mismatched_sizes: true # Allows loading pretrained weights when the configured class count differs.
 
 training: # Training loop settings shared by all generated runs.
