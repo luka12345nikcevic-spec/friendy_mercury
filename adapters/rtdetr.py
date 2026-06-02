@@ -177,6 +177,9 @@ def build_rtdetr(
         RTDetrImageProcessor,
     ) = _load_transformers_rtdetr()
 
+    input_max_size = config_kwargs.pop("input_max_size", input_max_size)
+    input_size_multiple = config_kwargs.pop("input_size_multiple", input_size_multiple)
+
     id2label = config_kwargs.pop(
         "id2label",
         {class_id: str(class_id) for class_id in range(num_classes)},
