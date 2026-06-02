@@ -21,6 +21,7 @@ class RTDETRAdapter:
     score_threshold: float = 0.5
     image_mean: tuple = (0.485, 0.456, 0.406)
     image_std: tuple = (0.229, 0.224, 0.225)
+    input_size_multiple: int = 32
     name: str = "rtdetr"
 
     def to(self, device):
@@ -79,6 +80,8 @@ class RTDETRAdapter:
         ]
         max_height = max(image.shape[-2] for image in prepared_images)
         max_width = max(image.shape[-1] for image in prepared_images)
+        max_height = _ceil_to_multiple(max_height, self.input_size_multiple)
+        max_width = _ceil_to_multiple(max_width, self.input_size_multiple)
 
         pixel_values = []
         pixel_masks = []
@@ -122,6 +125,7 @@ def build_rtdetr(
     score_threshold: float = 0.5,
     image_mean: tuple = (0.485, 0.456, 0.406),
     image_std: tuple = (0.229, 0.224, 0.225),
+    input_size_multiple: int = 32,
     ignore_mismatched_sizes: bool = True,
     **config_kwargs: Any,
 ) -> RTDETRAdapter:
@@ -170,7 +174,14 @@ def build_rtdetr(
         score_threshold=score_threshold,
         image_mean=image_mean,
         image_std=image_std,
+        input_size_multiple=input_size_multiple,
     )
+
+
+def _ceil_to_multiple(value: int, multiple: int) -> int:
+    if multiple <= 1:
+        return value
+    return ((value + multiple - 1) // multiple) * multiple
 
 
 def rtdetr_prediction_to_friendy(
