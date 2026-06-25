@@ -21,8 +21,8 @@ class RTDETRAdapter:
     score_threshold: float = 0.5
     image_mean: tuple = (0.485, 0.456, 0.406)
     image_std: tuple = (0.229, 0.224, 0.225)
+    input_max_size: Optional[int] = 640
     input_size_multiple: int = 32
-    input_max_size: Optional[int] = None
     name: str = "rtdetr"
 
     def to(self, device):
@@ -39,6 +39,7 @@ class RTDETRAdapter:
 
     def training_step(self, images, targets):
         self.model.train()
+        images, targets = self._resize_training_inputs(images, targets)
         batch = self._prepare_batch(images)
         labels = self._prepare_labels(targets, images)
         outputs = self.model(**batch, labels=labels)
@@ -53,6 +54,7 @@ class RTDETRAdapter:
         was_training = self.model.training
         self.model.eval()
         try:
+            images, targets = self._resize_training_inputs(images, targets)
             batch = self._prepare_batch(images)
             labels = self._prepare_labels(targets, images)
             outputs = self.model(**batch, labels=labels)
@@ -68,7 +70,7 @@ class RTDETRAdapter:
     @torch.no_grad()
     def predict(self, images, score_threshold: Optional[float] = None):
         self.model.eval()
-        batch = self._prepare_batch(images)
+        batch = self._prepare_batch([self._resize_image(image) for image in images])
         outputs = self.model(**batch)
         target_sizes = torch.tensor(
             [[image.shape[-2], image.shape[-1]] for image in images],
@@ -92,7 +94,7 @@ class RTDETRAdapter:
         image_std = torch.tensor(self.image_std, device=device).view(3, 1, 1)
 
         prepared_images = [
-            self._resize_image_if_needed((image.to(device).float() - image_mean) / image_std)
+            ((image.to(device).float() - image_mean) / image_std)
             for image in images
         ]
         max_height = max(image.shape[-2] for image in prepared_images)
@@ -117,40 +119,58 @@ class RTDETRAdapter:
             "pixel_mask": torch.stack(pixel_masks),
         }
 
-    def _resized_size(self, image):
+    def _resize_training_inputs(self, images, targets):
+        resized_images = []
+        resized_targets = []
+        for image, target in zip(images, targets):
+            resized_image, scale_y, scale_x = self._resize_image_with_scale(image)
+            resized_target = dict(target)
+            if scale_y != 1.0 or scale_x != 1.0:
+                boxes = target["boxes"].clone()
+                boxes[:, [0, 2]] *= scale_x
+                boxes[:, [1, 3]] *= scale_y
+                resized_target["boxes"] = boxes
+            resized_images.append(resized_image)
+            resized_targets.append(resized_target)
+        return resized_images, resized_targets
+
+    def _resize_image(self, image):
+        resized_image, _, _ = self._resize_image_with_scale(image)
+        return resized_image
+
+    def _resize_image_with_scale(self, image):
+        if self.input_max_size is None or self.input_max_size <= 0:
+            return image, 1.0, 1.0
+
         height, width = image.shape[-2:]
-        if self.input_max_size is None:
-            return height, width
         longest_side = max(height, width)
         if longest_side <= self.input_max_size:
-            return height, width
-        scale = self.input_max_size / longest_side
-        return max(1, round(height * scale)), max(1, round(width * scale))
+            return image, 1.0, 1.0
 
-    def _resize_image_if_needed(self, image):
-        resized_height, resized_width = self._resized_size(image)
-        if (resized_height, resized_width) == tuple(image.shape[-2:]):
-            return image
-        return F.interpolate(
+        scale = self.input_max_size / float(longest_side)
+        resized_height = max(1, round(height * scale))
+        resized_width = max(1, round(width * scale))
+        resized = F.interpolate(
             image.unsqueeze(0),
             size=(resized_height, resized_width),
             mode="bilinear",
             align_corners=False,
         ).squeeze(0)
+        return resized, resized_height / float(height), resized_width / float(width)
 
     def _prepare_labels(self, targets, images):
         device = next(self.model.parameters()).device
         labels = []
         for target, image in zip(targets, images):
-            resized_height, resized_width = self._resized_size(image)
+            image_height, image_width = image.shape[-2:]
             boxes = target["boxes"].to(device).float()
             labels.append(
                 {
                     "class_labels": target["labels"].to(device).long(),
                     "boxes": xyxy_to_xywhn(
                         boxes,
-                        image_width=resized_width,
-                        image_height=resized_height,
+                        image_width=image_width,
+                        image_height=image_height,
                     ),
                 }
             )
@@ -163,8 +183,8 @@ def build_rtdetr(
     score_threshold: float = 0.5,
     image_mean: tuple = (0.485, 0.456, 0.406),
     image_std: tuple = (0.229, 0.224, 0.225),
+    input_max_size: Optional[int] = 640,
     input_size_multiple: int = 32,
-    input_max_size: Optional[int] = None,
     ignore_mismatched_sizes: bool = True,
     **config_kwargs: Any,
 ) -> RTDETRAdapter:
@@ -173,6 +193,9 @@ def build_rtdetr(
         RTDetrForObjectDetection,
         RTDetrImageProcessor,
     ) = _load_transformers_rtdetr()
+
+    input_max_size = config_kwargs.pop("input_max_size", input_max_size)
+    input_size_multiple = config_kwargs.pop("input_size_multiple", input_size_multiple)
 
     id2label = config_kwargs.pop(
         "id2label",
@@ -197,13 +220,14 @@ def build_rtdetr(
         )
         model = RTDetrForObjectDetection(config)
     else:
+        config = RTDetrConfig.from_pretrained(weights, **config_kwargs)
+        config.id2label = id2label
+        config.label2id = label2id
+        config.num_labels = num_classes
         model = RTDetrForObjectDetection.from_pretrained(
             weights,
-            num_labels=num_classes,
-            id2label=id2label,
-            label2id=label2id,
+            config=config,
             ignore_mismatched_sizes=ignore_mismatched_sizes,
-            **config_kwargs,
         )
 
     return RTDETRAdapter(
@@ -213,8 +237,8 @@ def build_rtdetr(
         score_threshold=score_threshold,
         image_mean=image_mean,
         image_std=image_std,
-        input_size_multiple=input_size_multiple,
         input_max_size=input_max_size,
+        input_size_multiple=input_size_multiple,
     )
 
 
