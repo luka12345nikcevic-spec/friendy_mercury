@@ -90,6 +90,20 @@ python train.py configs/experiment.yaml
 
 Description: loads the config, builds the `ExperimentRun` matrix, trains each run, saves checkpoints, writes histories/results, and runs test evaluation if a test dataset is configured.
 
+### Resume An Interrupted Sweep
+
+If a sweep was interrupted (machine died, OOM, Ctrl-C), re-run the same command with `--resume`:
+
+```bash
+python train.py configs/experiment.yaml --resume
+```
+
+Description: with `--resume`, any run that already has a complete `result.yaml` is skipped, and any run that has a `last.pt` checkpoint but did not finish is continued from its next epoch (restoring model, optimizer, scheduler, AMP scaler, history, and best score). Without `--resume` every run starts fresh from epoch 1 and overwrites existing checkpoints. The flag also works on the full pipeline: `python run.py configs/experiment.yaml --resume`.
+
+When training finishes (resumed or not), `train.py` runs a consolidated evaluation phase across **every** run from its saved checkpoints — val split (if a val dataset is configured) and test split (if a test dataset is configured) — writing `val_results.yaml` and `test_results.yaml` under `output_dir`. This covers runs that were skipped by `--resume`, so a resumed sweep still ends with test metrics for all runs. It uses each run's `best.pt` when a val dataset exists, otherwise `last.pt`. (`run.py` keeps doing its own val/test phase, so it is unaffected.)
+
+Note: resume reloads the saved optimizer/scheduler state into the same `output_dir`, so if you changed hyperparameters, run without `--resume` (or point at a fresh `output_dir`) instead of resuming the old trajectory.
+
 Outputs are written under the configured `output_dir`, for example:
 
 ```text
@@ -172,7 +186,7 @@ last.pt
 
 ## Export Metrics To CSV
 
-Export one universal CSV where each train dataset is one row and model results are grouped into model-prefixed columns:
+Export one universal CSV where each model is one row and train datasets are grouped into dataset-prefixed columns:
 
 ```bash
 python export.py runs/helmet-benchmark/results.yaml \
@@ -181,7 +195,7 @@ python export.py runs/helmet-benchmark/results.yaml \
   --output runs/helmet-benchmark/metrics.csv
 ```
 
-Description: merges training results, validation metrics, and test metrics into one matrix-friendly CSV. Columns include train/eval dataset identity plus model-prefixed run fields, training losses, `val_*` metrics, and `test_*` metrics such as `yolox_val_map50` or `retinanet_test_f1`.
+Description: merges training results, validation metrics, and test metrics into one matrix-friendly CSV. Rows are models, and each train dataset gets its own prefixed columns for run fields, training losses, `val_*` metrics, and `test_*` metrics such as `chvg_dataset_val_map50` or `kaggle_dataset_test_f1`.
 
 If `--output` is omitted, the CSV is written next to the first YAML file with a `.csv` suffix.
 

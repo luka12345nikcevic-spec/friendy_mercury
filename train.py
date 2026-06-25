@@ -25,16 +25,22 @@ except ImportError:
 def train_from_config(
     config_path: str | Path,
     evaluate_after_train: bool = True,
+    resume: bool = False,
 ) -> List[Dict[str, Any]]:
     """Train every model declared in one Friendy Mercury YAML config."""
     print(f"[train] Starting from config: {config_path}")
     config = load_config(config_path)
-    return train_experiment(config, evaluate_after_train=evaluate_after_train)
+    return train_experiment(
+        config,
+        evaluate_after_train=evaluate_after_train,
+        resume=resume,
+    )
 
 
 def train_experiment(
     config: ExperimentConfig,
     evaluate_after_train: bool = True,
+    resume: bool = False,
 ) -> List[Dict[str, Any]]:
     if config.training.seed is not None:
         print(f"[train] Setting random seed: {config.training.seed}")
@@ -51,25 +57,70 @@ def train_experiment(
     eval_loaders: Dict[DatasetConfig, DataLoader] = {}
     results = []
     runs = build_experiment_runs(config)
-    print(f"[train] Training {len(runs)} run(s)")
+    print(f"[train] Training {len(runs)} run(s) (resume={resume})")
     for run in runs:
+        result_path = config.output_dir / run.name / "result.yaml"
+        if resume and result_path.exists():
+            print(f"[train] Run {run.name} already complete, skipping (found {result_path})")
+            results.append(_read_yaml(result_path))
+            _write_yaml(config.output_dir / "results.yaml", _to_builtin(results))
+            continue
+
         train_loader = _get_train_loader(config, run.train_dataset, train_loaders)
         val_loader = _get_eval_loader(config, run.val_dataset, eval_loaders)
         test_loader = _get_eval_loader(config, run.test_dataset, eval_loaders)
 
-        result = train_model(
-            config=config,
-            run=run,
-            train_loader=train_loader,
-            val_loader=val_loader,
-            test_loader=test_loader,
-            device=device,
-            evaluate_after_train=evaluate_after_train,
-        )
+        try:
+            result = train_model(
+                config=config,
+                run=run,
+                train_loader=train_loader,
+                val_loader=val_loader,
+                test_loader=test_loader,
+                device=device,
+                evaluate_after_train=False,
+                resume=resume,
+            )
+        except Exception as exc:
+            print(f"[train] Run {run.name} FAILED: {exc}")
+            result = {"run_index": run.index, "run_name": run.name, "error": str(exc)}
         results.append(result)
         _write_yaml(config.output_dir / "results.yaml", _to_builtin(results))
 
+    if evaluate_after_train:
+        _evaluate_all_runs_after_train(config)
+
     return results
+
+
+def _evaluate_all_runs_after_train(config: ExperimentConfig) -> None:
+    """Run the val/test evaluation phase across every run from its saved checkpoints.
+
+    This is the consolidated "testing phase": it covers every run uniformly,
+    including runs that were skipped by --resume because they were already
+    trained. Evaluation reads each run's best/last checkpoint, so no retraining
+    happens here.
+    """
+    if config.val_dataset is None and config.test_dataset is None:
+        print("[train] No val/test dataset configured; skipping post-train evaluation")
+        return
+
+    # Imported lazily: val.py imports predict_dataset from this module, so a
+    # top-level import here would be circular.
+    try:
+        from .val import val_experiment
+    except ImportError:
+        from val import val_experiment
+
+    checkpoint = "best" if config.val_dataset is not None else "last"
+    print(f"[train] Post-train evaluation phase start (checkpoint={checkpoint})")
+    if config.val_dataset is not None:
+        print("[train] Evaluating val split for all runs")
+        val_experiment(config, split="val", checkpoint=checkpoint)
+    if config.test_dataset is not None:
+        print("[train] Evaluating test split for all runs")
+        val_experiment(config, split="test", checkpoint=checkpoint)
+    print("[train] Post-train evaluation phase done")
 
 
 def _get_train_loader(
@@ -115,6 +166,7 @@ def train_model(
     test_loader: Optional[DataLoader],
     device: torch.device,
     evaluate_after_train: bool = True,
+    resume: bool = False,
 ) -> Dict[str, Any]:
     model_config = run.model
     train_dataset_config = run.train_dataset
@@ -147,8 +199,29 @@ def train_model(
     history = []
     best_score = None
     best_epoch = None
+    start_epoch = 1
 
-    for epoch in range(1, config.training.epochs + 1):
+    last_checkpoint = run_dir / "last.pt"
+    if resume and last_checkpoint.exists():
+        print(f"[train] Resuming run {run_name} from checkpoint: {last_checkpoint}")
+        state = torch.load(last_checkpoint, map_location=device)
+        adapter.model.load_state_dict(state["model_state_dict"])
+        if state.get("optimizer_state_dict") is not None:
+            optimizer.load_state_dict(state["optimizer_state_dict"])
+        if scheduler is not None and state.get("scheduler_state_dict") is not None:
+            scheduler.load_state_dict(state["scheduler_state_dict"])
+        if scaler is not None and state.get("scaler_state_dict") is not None:
+            scaler.load_state_dict(state["scaler_state_dict"])
+        history = list(state.get("history") or [])
+        best_score = state.get("best_score")
+        best_epoch = _best_epoch_from_history(history)
+        start_epoch = int(state.get("epoch", 0)) + 1
+        print(
+            f"[train] Resumed run {run_name} at epoch {start_epoch}/{config.training.epochs} "
+            f"(best_score={best_score} best_epoch={best_epoch})"
+        )
+
+    for epoch in range(start_epoch, config.training.epochs + 1):
         print(f"[train] Run {run_name} epoch {epoch}/{config.training.epochs} start")
         train_summary = train_one_epoch(
             adapter=adapter,
@@ -166,6 +239,7 @@ def train_model(
                 adapter,
                 val_loader,
                 device,
+                config=config,
                 source_classes=run.val_dataset.classes if run.val_dataset is not None else None,
                 model_classes=train_dataset_config.classes,
             )
@@ -196,6 +270,7 @@ def train_model(
             "model_state_dict": adapter.model.state_dict(),
             "optimizer_state_dict": optimizer.state_dict(),
             "scheduler_state_dict": scheduler.state_dict() if scheduler is not None else None,
+            "scaler_state_dict": scaler.state_dict() if scaler is not None else None,
             "best_score": best_score,
             "history": history,
         }
@@ -313,6 +388,7 @@ def evaluate_loss(
     adapter: Any,
     loader: DataLoader,
     device: torch.device,
+    config: ExperimentConfig,
     source_classes: Optional[Dict[int, str]] = None,
     model_classes: Optional[Dict[int, str]] = None,
 ) -> Dict[str, Any]:
@@ -323,7 +399,9 @@ def evaluate_loss(
     for images, targets in loader:
         images, targets = _move_batch_to_device(images, targets, device)
         targets = _remap_targets_to_model_classes(targets, source_classes, model_classes)
-        loss, loss_items = adapter.training_step(images, targets)
+        loss_step = getattr(adapter, "validation_step", adapter.training_step)
+        with _autocast_context(config, device):
+            loss, loss_items = loss_step(images, targets)
         batch_size = len(images)
         total_loss += float(loss.detach().cpu()) * batch_size
         total_images += batch_size
@@ -602,6 +680,19 @@ def _write_yaml(path: str | Path, value: Any) -> None:
         yaml.safe_dump(value, file, sort_keys=False)
 
 
+def _read_yaml(path: str | Path) -> Any:
+    with open(path) as file:
+        return yaml.safe_load(file)
+
+
+def _best_epoch_from_history(history: List[Dict[str, Any]]) -> Optional[int]:
+    best_epoch = None
+    for entry in history:
+        if entry.get("is_best"):
+            best_epoch = entry.get("epoch", best_epoch)
+    return best_epoch
+
+
 def _to_builtin(value: Any) -> Any:
     if is_dataclass(value):
         return _to_builtin(asdict(value))
@@ -630,8 +721,13 @@ def _cpu_value(value: Any) -> Any:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train Friendy Mercury models from YAML config")
     parser.add_argument("config", help="Path to experiment YAML config")
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Skip runs with a complete result.yaml and continue any run with a last.pt checkpoint from its next epoch",
+    )
     args = parser.parse_args()
-    results = train_from_config(args.config)
+    results = train_from_config(args.config, resume=args.resume)
     print(yaml.safe_dump(_to_builtin(results), sort_keys=False))
 
 

@@ -50,6 +50,23 @@ class RTDETRAdapter:
         )
         return outputs.loss, losses
 
+    def validation_step(self, images, targets):
+        was_training = self.model.training
+        self.model.eval()
+        try:
+            images, targets = self._resize_training_inputs(images, targets)
+            batch = self._prepare_batch(images)
+            labels = self._prepare_labels(targets, images)
+            outputs = self.model(**batch, labels=labels)
+            losses = (
+                dict(outputs.loss_dict)
+                if outputs.loss_dict is not None
+                else {"loss": outputs.loss}
+            )
+            return outputs.loss, losses
+        finally:
+            self.model.train(was_training)
+
     @torch.no_grad()
     def predict(self, images, score_threshold: Optional[float] = None):
         self.model.eval()
