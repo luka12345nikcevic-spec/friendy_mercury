@@ -18,18 +18,18 @@ except ImportError:
     from val import val_experiment
 
 
-def run_from_config(config_path: str | Path) -> Dict[str, Any]:
+def run_from_config(config_path: str | Path, resume: bool = False) -> Dict[str, Any]:
     print(f"[run] Starting full pipeline from config: {config_path}")
     config = load_config(config_path)
-    return run_experiment(config)
+    return run_experiment(config, resume=resume)
 
 
-def run_experiment(config: ExperimentConfig) -> Dict[str, Any]:
+def run_experiment(config: ExperimentConfig, resume: bool = False) -> Dict[str, Any]:
     config.output_dir.mkdir(parents=True, exist_ok=True)
     print(f"[run] Output directory: {config.output_dir}")
 
-    print("[run] Training phase start")
-    train_results = train_experiment(config, evaluate_after_train=False)
+    print(f"[run] Training phase start (resume={resume})")
+    train_results = train_experiment(config, evaluate_after_train=False, resume=resume)
     print(f"[run] Training phase done: runs={len(train_results)}")
     train_results_path = config.output_dir / "results.yaml"
 
@@ -112,8 +112,13 @@ def _to_builtin(value: Any) -> Any:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run a full Friendy Mercury experiment")
     parser.add_argument("config", help="Path to experiment YAML config")
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Skip completed runs and continue interrupted runs from their last checkpoint",
+    )
     args = parser.parse_args()
-    summary = run_from_config(args.config)
+    summary = run_from_config(args.config, resume=args.resume)
     print(yaml.safe_dump(_to_builtin(summary), sort_keys=False))
 
 

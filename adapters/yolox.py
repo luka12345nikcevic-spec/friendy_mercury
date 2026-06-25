@@ -9,6 +9,11 @@ try:
 except ImportError:
     from formats import clip_xyxy, xyxy_prediction_to_friendy, xyxy_to_xywh
 
+try:
+    from .retinanet import _set_batch_norm_eval
+except ImportError:
+    from adapters.retinanet import _set_batch_norm_eval
+
 
 DEFAULT_YOLOX_VARIANT = "yolox-s"
 
@@ -35,14 +40,22 @@ class YOLOXAdapter:
 
     def training_step(self, images, targets):
         self.model.train()
+        return self._loss_forward(images, targets)
+
+    def validation_step(self, images, targets):
+        was_training = self.model.training
+        self.model.train()
+        _set_batch_norm_eval(self.model)
+        try:
+            return self._loss_forward(images, targets)
+        finally:
+            self.model.train(was_training)
+
+    def _loss_forward(self, images, targets):
         batch = self._prepare_batch(images)
         yolox_targets = self._prepare_targets(targets, images)
         outputs = self.model(batch, yolox_targets)
-        losses = {
-            key: value
-            for key, value in outputs.items()
-            if key != "total_loss"
-        }
+        losses = {k: v for k, v in outputs.items() if k != "total_loss"}
         return outputs["total_loss"], losses
 
     @torch.no_grad()
@@ -179,3 +192,5 @@ def _load_checkpoint(model: torch.nn.Module, checkpoint_path: str) -> None:
     checkpoint = torch.load(checkpoint_path, map_location="cpu")
     state_dict = checkpoint.get("model", checkpoint)
     model.load_state_dict(state_dict)
+
+

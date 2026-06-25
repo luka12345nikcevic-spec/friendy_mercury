@@ -44,11 +44,34 @@ def _read_yolo_label_file(label_path, image_width, image_height):
                 continue
 
             class_id = int(float(parts[0]))
-            yolo_box = [float(value) for value in parts[1:5]]
-            boxes.append(xywhn_to_xyxy(yolo_box, image_width, image_height))
+            values = [float(value) for value in parts[1:]]
+            if len(values) == 4:
+                box = xywhn_to_xyxy(values, image_width, image_height)
+            elif len(values) == 5:
+                # YOLO OBB format (cx cy w h angle) — treat as axis-aligned bbox
+                box = xywhn_to_xyxy(values[:4], image_width, image_height)
+            elif len(values) >= 6 and len(values) % 2 == 0:
+                box = _normalized_polygon_to_xyxy(values, image_width, image_height)
+            else:
+                continue
+
+            if box[2] <= box[0] or box[3] <= box[1]:
+                continue
+
+            boxes.append(box)
             labels.append(class_id)
 
     return boxes, labels
+
+
+def _normalized_polygon_to_xyxy(points, image_width, image_height):
+    xs = points[0::2]
+    ys = points[1::2]
+    x1 = min(xs) * image_width
+    y1 = min(ys) * image_height
+    x2 = max(xs) * image_width
+    y2 = max(ys) * image_height
+    return [x1, y1, x2, y2]
 
 
 class YoloDetectionDataset:

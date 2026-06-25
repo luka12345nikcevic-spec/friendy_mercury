@@ -50,21 +50,18 @@ datasets: # Dataset definitions for train, validation, and final test roles.
         - no_vest # Class ID 10 for ultralytics-dataset.
 
   val: # Optional validation dataset used for validation loss, best checkpoint selection, and validation metrics.
-    name: ultralytics-val # Name used in validation logs and exported result summaries.
-    images: /home/mercury/luka_RD/friendy_mercury/data/ultralytics_dataset/images # Directory containing validation images.
-    labels: /home/mercury/luka_RD/friendy_mercury/data/ultralytics_dataset/labels # Directory containing matching YOLO-format validation labels.
+    name: test_0-val # Name used in validation logs and exported result summaries.
+    images: /home/mercury/luka_RD/friendy_mercury/data/test_dataset_0/images # Directory containing validation images.
+    labels: /home/mercury/luka_RD/friendy_mercury/data/test_dataset_0/labels # Directory containing matching validation labels.
     classes: # Class names for validation labels; list position is the validation class ID.
-      - helmet # Validation class ID 0.
-      - vest # Validation class ID 1.
-      - goggles # Validation class ID 2.
-      - Person # Validation class ID 3.
-      - boots # Validation class ID 4.
-      - gloves # Validation class ID 5.
-      - no_boots # Validation class ID 6.
-      - no_gloves # Validation class ID 7.
-      - no_goggle # Validation class ID 8.
-      - no_helmet # Validation class ID 9.
-      - no_vest # Validation class ID 10.
+      - gloves # Validation class ID 0.
+      - goggles # Validation class ID 1.
+      - helmet # Validation class ID 2.
+      - no_gloves # Validation class ID 3.
+      - no_goggles # Validation class ID 4.
+      - no_helmet # Validation class ID 5.
+      - no_vest # Validation class ID 6.
+      - vest # Validation class ID 7.
 
   test: # Optional final holdout dataset used for test metrics after training.
     name: test_0 # Name used in test logs and exported result summaries.
@@ -87,6 +84,8 @@ models: # Model definitions; every model is trained once for every dataset under
     weights_backbone: DEFAULT # Loads default backbone weights when full model weights are not used.
     weights: null # Disables pretrained full detection model weights.
     trainable_backbone_layers: null # Lets torchvision choose how many backbone layers are trainable.
+    min_size: 640 # RetinaNet internally resizes the shorter image side to this size.
+    max_size: 960 # Caps RetinaNet's longer image side to keep feature maps within 16 GB GPUs.
 
   - name: yolox # Selects the YOLOX adapter.
     num_classes: auto # Uses the current training dataset class count for each generated run.
@@ -100,17 +99,18 @@ models: # Model definitions; every model is trained once for every dataset under
     num_classes: auto # Uses the current training dataset class count for each generated run.
     weights: PekingU/rtdetr_r50vd # Hugging Face checkpoint used to initialize RT-DETR.
     score_threshold: 0.5 # Default confidence threshold used by the RT-DETR adapter when predicting directly.
+    input_max_size: 1280
     image_mean: [0.485, 0.456, 0.406] # Per-channel image normalization means for RT-DETR input tensors.
     image_std: [0.229, 0.224, 0.225] # Per-channel image normalization standard deviations for RT-DETR input tensors.
     ignore_mismatched_sizes: true # Allows loading pretrained weights when the configured class count differs.
 
 training: # Training loop settings shared by all generated runs.
-  epochs: 100 # Number of epochs to train each model/dataset run.
+  epochs: 70 # Number of epochs to train each model/dataset run.
   batch_size: 4 # Number of images per training batch.
   num_workers: 4 # Number of DataLoader worker processes for training batches.
   device: cuda # Torch device selector; use cuda, cpu, or auto.
   seed: 42 # Random seed used for Python, NumPy, and Torch reproducibility.
-  amp: false # Enables CUDA automatic mixed precision when true and the device is CUDA.
+  amp: true # Enables CUDA automatic mixed precision when true and the device is CUDA.
   gradient_clip_norm: null # Maximum gradient norm; null disables gradient clipping.
   optimizer: # Optimizer configuration for model parameter updates.
     name: adamw # Optimizer type; supported values are adamw, adam, and sgd.
@@ -122,5 +122,5 @@ training: # Training loop settings shared by all generated runs.
 evaluation: # Evaluation and metric settings used for validation and test passes.
   batch_size: 4 # Number of images per evaluation batch; defaults to training.batch_size when omitted.
   num_workers: 4 # Number of DataLoader worker processes for evaluation; defaults to training.num_workers when omitted.
-  score_threshold: 0.001 # Minimum prediction confidence included in metric computation.
+  score_threshold: 0.05 # Minimum prediction confidence included in metric computation. Boxes below this rarely become true positives, and a low value (e.g. 0.001) makes the metric matching loop very slow.
   iou_thresholds: [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95] # IoU thresholds used for mAP-style metrics.

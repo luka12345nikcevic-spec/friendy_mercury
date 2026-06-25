@@ -29,9 +29,20 @@ class RetinaNetAdapter:
 
     def training_step(self, images, targets):
         self.model.train()
+        return self._loss_forward(images, targets)
+
+    def validation_step(self, images, targets):
+        was_training = self.model.training
+        self.model.train()
+        _set_batch_norm_eval(self.model)
+        try:
+            return self._loss_forward(images, targets)
+        finally:
+            self.model.train(was_training)
+
+    def _loss_forward(self, images, targets):
         losses = self.model(images, targets)
-        total_loss = sum(loss for loss in losses.values())
-        return total_loss, losses
+        return sum(loss for loss in losses.values()), losses
 
     @torch.no_grad()
     def predict(self, images):
@@ -109,3 +120,9 @@ def _resolve_weights(enum_cls, value):
         return None
 
     return enum_cls.verify(value)
+
+
+def _set_batch_norm_eval(module: torch.nn.Module) -> None:
+    for child in module.modules():
+        if isinstance(child, torch.nn.modules.batchnorm._BatchNorm):
+            child.eval()
